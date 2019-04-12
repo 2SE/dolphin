@@ -10,19 +10,19 @@ import (
 
 const (
 	configFileName = "config.toml"
-	homeConfigPath = ".config/api-gateway"
-	etcConfigPath  = "/etc/api-gateway"
+	homeConfigPath = ".config/dolphin.d"
+	etcConfigPath  = "/etc/dolphin.d"
 )
 
 var (
 	ConfFileNotFound = errors.New("config file not found")
 )
 
-// Load 载入api-gateway配置文件
+// Load 载入dolphin配置文件
 // 1. 用户指定路径，如果传入的配置文件为空，则按照以下顺序查找配置文件
 // 2. 查询应用程序同路径下是否存在配置文件
-// 3. 查询$HOME/.config/api-gateway/config.toml
-// 4. 查询/etc/api-gateway/config.toml
+// 3. 查询$HOME/.config/dolphin.d/config.toml
+// 4. 查询/etc/dolphin.d/config.toml
 func Load(filePath string) (*Config, error) {
 	var (
 		err error
@@ -42,8 +42,8 @@ func Load(filePath string) (*Config, error) {
 
 // 1. 用户指定路径
 // 2. 查询应用程序同路径下是否存在配置文件
-// 3. 查询$HOME/.config/api-gateway/config.toml
-// 4. 查询/etc/api-gateway/config.toml
+// 3. 查询$HOME/.config/dolphin.d/config.toml
+// 4. 查询/etc/dolphin.d/config.toml
 func findPath(givenPath string) (string, error) {
 	if len(givenPath) > 0 {
 		return givenPath, nil

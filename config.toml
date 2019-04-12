@@ -1,3 +1,26 @@
+[websocket]
+listen = "127.0.0.1:8080"
+read_buf_size = 1024
+write_buf_size = 1204
+expvar = "/debug/vars"
+
+[websocket.tls]
+enabled = false
+cert_file = "/path/to/certfile"
+key_file = "/path/to/keyfile"
+
+[websocket.tls.autocert]
+#Location of certificates.
+cache = "/etc/letsencrypt/live/your.domain.here"
+
+# Contact address for this installation. LetsEncrypt will send
+# messages to this address in case of problems. Replace with your
+# own address or remove this line.
+email = "noreply@example.com"
+
+# Domains served. Replace with your own domain name.
+domains = ["whatever.example.com"]
+
 [cluster]
 # 当前自身节点的名称
 self = "node1"
@@ -27,4 +50,22 @@ vote_after = 8
 node_fail_after = 16
 
 [event_bus]
-address = "127.0.0.1:41050"
+listen = "127.0.0.1:41050"
+
+[event_bus.kafka]
+brokers = ["127.0.0.1:9092"]
+waitWindow = "2s"
+consumeGroup = "dolphin-grp"
+minBytes = 1000
+maxBytes = 1000000
+startOffset = 0
+
+[[plugins]]
+enabled = false
+name = "auth"
+server_addr = "127.0.0.1:30060"
+
+[[plugins]]
+enabled = false
+name = "rate limit"
+server_addr = "127.0.0.1:30061"

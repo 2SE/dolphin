@@ -18,7 +18,7 @@ type eventBusServer struct {
 
 func Init(cnf *config.EventBusConfig) error {
 	server = &eventBusServer{
-		address: cnf.Address,
+		address: cnf.Listen,
 	}
 	return nil
 }
