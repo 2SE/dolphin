@@ -1,0 +1,30 @@
+[cluster]
+# 当前自身节点的名称
+self = "node1"
+
+[[cluster.nodes]]
+name = "node1"
+address = "127.0.0.1:40051"
+
+[[cluster.nodes]]
+name = "node2"
+address = "127.0.0.1:40052"
+
+[[cluster.nodes]]
+name = "node3"
+address = "127.0.0.1:40053"
+
+[cluster.failover]
+# 是否启用容错
+enabled = true
+# 心跳间隔时间
+# 一个心跳周期到达时维持两种关系：1、主节点向从节点发送ping心跳检测；2、发送主节点投票选举
+# 心跳间隔规则：1、字符串；2、ms后缀表示毫秒，s后缀表示秒，m后缀表示分。心跳是毫秒级的，因此常用ms后缀
+heartbeat = "100ms"
+# 在n个心跳周期之后如果仍然没可用的主节点，将发起主节点选举
+vote_after = 8
+# 在n个心跳周期之后，节点仍然没有正常响应，将视作该节点不可用
+node_fail_after = 16
+
+[event_bus]
+address = "127.0.0.1:41050"
