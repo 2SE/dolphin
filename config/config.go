@@ -44,16 +44,17 @@ type WebsocketConfig struct {
 }
 
 type WsTlsConfig struct {
-	Enabled  bool
-	CertFile string `toml:"cert_file"`
-	KeyFile  string `toml:"key_file"`
-	Autocert *WsAutoCertConfig
+	Enabled      bool
+	HTTPRedirect string `toml:"http_redirect"`
+	CertFile     string `toml:"cert_file"`
+	KeyFile      string `toml:"key_file"`
+	Autocert     *WsAutoCertConfig
 }
 
 type WsAutoCertConfig struct {
-	Cache   string
-	Email   string
-	Domains []string
+	CertCache string `toml:"cert_cache"`
+	Email     string
+	Domains   []string
 }
 
 type KafkaConfig struct {
@@ -102,12 +103,12 @@ func (wscnf *WebsocketConfig) String() string {
 }
 
 func (tcnf *WsTlsConfig) String() string {
-	return fmt.Sprintf("\n [WS TLS](enabled): %v, (cert file): %s, (key file): %s, \n[autocert]: %s",
-		tcnf.Enabled, tcnf.CertFile, tcnf.KeyFile, tcnf.Autocert)
+	return fmt.Sprintf("\n [WS TLS](enabled): %v, (redirect http): %s, (cert file): %s, (key file): %s, \n[autocert]: %s",
+		tcnf.Enabled, tcnf.HTTPRedirect, tcnf.CertFile, tcnf.KeyFile, tcnf.Autocert)
 }
 
 func (acc *WsAutoCertConfig) String() string {
-	return fmt.Sprintf("  cache: %s, domains: %v, email: %s", acc.Cache, acc.Domains, acc.Email)
+	return fmt.Sprintf("  cache: %s, domains: %v, email: %s", acc.CertCache, acc.Domains, acc.Email)
 }
 
 func (ccnf *ClusterConfig) String() string {

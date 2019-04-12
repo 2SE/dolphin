@@ -2,7 +2,7 @@ package cluster
 
 import (
 	"errors"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"net/rpc"
 	"sync"
 	"time"

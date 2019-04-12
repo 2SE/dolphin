@@ -49,4 +49,6 @@ service Bus {
     // APP向event bug 注册
     rpc register (AppInfo) returns (RegReply);
     rpc pipe (stream AppComMessage) returns (stream GatewayComMessage);
+    //
+    rpc route (stream AppComMessage) returns (stream AppComMessage);
 }

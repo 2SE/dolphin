@@ -4,7 +4,7 @@ import (
 	"errors"
 	"github.com/2se/dolphin/config"
 	rh "github.com/2se/dolphin/ringhash"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"net"
 	"net/rpc"
 	"sort"

@@ -4,8 +4,8 @@ package ringhash
 
 import (
 	"encoding/ascii85"
+	log "github.com/sirupsen/logrus"
 	"hash/fnv"
-	"log"
 	"sort"
 	"strconv"
 )

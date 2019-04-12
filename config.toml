@@ -1,4 +1,5 @@
 [websocket]
+# dolphin 对外提供websocket连接服务的地址
 listen = "127.0.0.1:8080"
 read_buf_size = 1024
 write_buf_size = 1204
@@ -6,12 +7,14 @@ expvar = "/debug/vars"
 
 [websocket.tls]
 enabled = false
+http_redirect = ":80"
 cert_file = "/path/to/certfile"
 key_file = "/path/to/keyfile"
 
+# 以下设置将优先于cert file 和key file
 [websocket.tls.autocert]
 #Location of certificates.
-cache = "/etc/letsencrypt/live/your.domain.here"
+cert_cache = "/etc/letsencrypt/live/your.domain.here"
 
 # Contact address for this installation. LetsEncrypt will send
 # messages to this address in case of problems. Replace with your

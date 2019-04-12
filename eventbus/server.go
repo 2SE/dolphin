@@ -3,8 +3,8 @@ package eventbus
 import (
 	"context"
 	"github.com/2se/dolphin/config"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"log"
 	"net"
 )
 

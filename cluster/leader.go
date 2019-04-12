@@ -2,7 +2,7 @@ package cluster
 
 import (
 	"github.com/2se/dolphin/config"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"math/rand"
 	"net/rpc"
 	"time"
