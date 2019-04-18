@@ -11,29 +11,26 @@ import (
 // unSubscribeAll Type = "unSubscribeAll"
 type Type byte
 
-type Topic [3]byte
-
 type Topicer interface {
-	GetTopic() Topic
-	GetKey() byte
+	GetTopic() []byte
 }
 
 //Event ...
 type Event interface {
-	GetTopic() Topic
+	GetTopic() Topicer
 	GetMetaData() []byte
 	GetData() []byte
 }
 
 //GenericEvent ...
 type GenericEvent struct {
-	Topic Topic
+	Topic Topicer
 	Meta  []byte
 	Data  []byte
 }
 
 //GetType ...
-func (e *GenericEvent) GetTopic() Topic {
+func (e *GenericEvent) GetTopic() Topicer {
 	return e.Topic
 }
 
@@ -52,9 +49,9 @@ type Callback func(event Event)
 
 //Emitter ...
 type Emitter interface {
-	On(topicer Topic, callback Callback) (identity uintptr)
-	Once(topicer Topic) (identity uintptr, event <-chan Event)
-	Subscribe(topicer Topic) (identity uintptr, event <-chan Event)
+	On(topicer Topicer, callback Callback) (identity uintptr)
+	Once(topicer Topicer) (identity uintptr, event <-chan Event)
+	Subscribe(topicer Topicer) (identity uintptr, event <-chan Event)
 	UnSubscribe(identity ...uintptr)
 	UnSubscribeAll()
 	Emit(event ...Event)
@@ -65,7 +62,7 @@ type Emitter interface {
 // when unsubscribe event, the channel sending event will automate be closed
 func NewEmitter(eventBufSize int) Emitter {
 	emitter := new(eventEmitter)
-	emitter.hub = make(map[Topic]*broadcaster)
+	emitter.hub = make(map[Topicer]*broadcaster)
 	emitter.eventListener = make(chan Event)
 	emitter.observer = make(chan subscriber)
 	if eventBufSize <= 0 {
@@ -77,7 +74,7 @@ func NewEmitter(eventBufSize int) Emitter {
 }
 
 type eventEmitter struct {
-	hub           map[Topic]*broadcaster
+	hub           map[Topicer]*broadcaster
 	eventListener chan Event
 	observer      chan subscriber
 	eventBufSize  int
@@ -120,20 +117,20 @@ func (e *eventEmitter) unSubscribe(suber subscriber) {
 	}
 }
 
-func (e *eventEmitter) On(topic Topic, callback Callback) (identity uintptr) {
-	identity, _ = e.doSubscribe(topic, fireAllways, callback)
+func (e *eventEmitter) On(topicer Topicer, callback Callback) (identity uintptr) {
+	identity, _ = e.doSubscribe(topicer, fireAllways, callback)
 	return
 }
 
-func (e *eventEmitter) Once(topic Topic) (uintptr, <-chan Event) {
-	return e.doSubscribe(topic, fireOnce, nil)
+func (e *eventEmitter) Once(topicer Topicer) (uintptr, <-chan Event) {
+	return e.doSubscribe(topicer, fireOnce, nil)
 }
 
-func (e *eventEmitter) Subscribe(topic Topic) (uintptr, <-chan Event) {
-	return e.doSubscribe(topic, fireAllways, nil)
+func (e *eventEmitter) Subscribe(topicer Topicer) (uintptr, <-chan Event) {
+	return e.doSubscribe(topicer, fireAllways, nil)
 }
 
-func (e *eventEmitter) doSubscribe(topic Topic, subType subscribeType, callback Callback) (uintptr, <-chan Event) {
+func (e *eventEmitter) doSubscribe(topicer Topicer, subType subscribeType, callback Callback) (uintptr, <-chan Event) {
 	//identity := uuid.New()
 	response := make(chan chan Event)
 	ptr := uintptr(unsafe.Pointer(&callback))
@@ -141,7 +138,7 @@ func (e *eventEmitter) doSubscribe(topic Topic, subType subscribeType, callback 
 		identity:        ptr,
 		callback:        callback,
 		subscribeAction: subscribe,
-		topic:           topic,
+		topic:           topicer,
 		subscribeType:   subType,
 		response:        response,
 	}
@@ -193,7 +190,7 @@ const (
 type subscriber struct {
 	identity        uintptr //string
 	callback        Callback
-	topic           Topic
+	topic           Topicer
 	subscribeType   subscribeType
 	subscribeAction Type
 	response        chan chan Event
@@ -274,11 +271,11 @@ func (b *broadcaster) processUnSubscribeAll(suber subscriber) {
 	}
 }
 
-func (b *broadcaster) checkEmpty(topic Topic) {
+func (b *broadcaster) checkEmpty(topicer Topicer) {
 	if len(b.subers) == 0 {
 		//clean the parent event type
 		//will error?
-		delete(b.emitter.hub, topic)
+		delete(b.emitter.hub, topicer)
 	}
 }
 

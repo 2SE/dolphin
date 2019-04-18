@@ -32,7 +32,7 @@ func TestPeersRoute_Sort(t *testing.T) {
 
 func TestResourcesPool_RegiserSubResources(t *testing.T) {
 	route := NewRoute(1)
-	route.Register([]Topic{{1, 2, 3}, {1, 2, 4}, {2, 3, 4}}, 50, 0)
+	route.Register([]MethodPath{{1, 2, 3}, {1, 2, 4}, {2, 3, 4}}, 50, 0)
 	for k, v := range route.listTopicPeers() {
 		fmt.Println("key:", k)
 		fmt.Printf("peer:%d app:%d ", (*v)[0][0], (*v)[0][1])

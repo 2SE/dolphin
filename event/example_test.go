@@ -4,13 +4,30 @@
 package event
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 	"time"
 )
 
+type TestTopic struct {
+	Version  string
+	Resource string
+	Action   string
+}
+
+func (s *TestTopic) GetTopic() []byte {
+	buff := bytes.NewBuffer(nil)
+	buff.WriteString(s.Version)
+	buff.WriteString("_")
+	buff.WriteString(s.Action)
+	buff.WriteString("_")
+	buff.WriteString(s.Resource)
+	return buff.Bytes()
+}
+
 var (
-	fireEvent = Topic{1, 2, 3}
+	fireEvent = &TestTopic{"v1", "user", "getUser"}
 )
 
 func Example_newEmitter() {

@@ -19,15 +19,13 @@ func TestOn(t *testing.T) {
 	wg.Add(fireTimes)
 
 	emitter.On(fireEvent, response(wg, t))
-	event := &GenericEvent{
-		Topic: Topic{1, 2, 3},
-	}
-
 	for i := 0; i < fireTimes; i++ {
+		event := &GenericEvent{
+			Topic: fireEvent,
+		}
 		event.Data = []byte(fmt.Sprintf("fire in the hole %d", i+1))
 		emitter.Emit(event)
 	}
-
 	t.Log("event emitted.")
 	wg.Wait()
 	t.Log("Testing finished.")

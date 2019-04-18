@@ -9,19 +9,20 @@ import (
 // fisrt byte  : version
 // second byte : resource
 // third byte  : action
-type Topic [3]byte
+type MethodPath [3]byte
 
 type Router interface {
-	RouteIn(topic Topic) (interface{}, error)
-	RouteOut(topic Topic) (interface{}, error)
+	RouteIn(mp MethodPath) (interface{}, error)
+	RouteOut(mp MethodPath) (interface{}, error)
 	//注册单个app上所有资源,peer 为 0 是默认本地
-	Register(topics []Topic, app, peer byte)
+	Register(mps []MethodPath, app, peer byte)
 	//注销app下所有
 	UnRegisterApp(appKey byte)
 	//注销peer下所有
 	UnRegisterPeer(peer byte)
+
 	//for unit test
-	listTopicPeers() map[Topic]*PeersRoute
+	listTopicPeers() map[MethodPath]*PeersRoute
 }
 
 // 初始化本地route
@@ -29,14 +30,14 @@ type Router interface {
 func NewRoute(peer byte) Router {
 	route := &resourcesPool{
 		curPeer:    peer,
-		topicPeers: make(map[Topic]*PeersRoute),
+		topicPeers: make(map[MethodPath]*PeersRoute),
 	}
 	return route
 }
 
 type resourcesPool struct {
 	curPeer    byte
-	topicPeers map[Topic]*PeersRoute
+	topicPeers map[MethodPath]*PeersRoute
 	m          sync.RWMutex
 }
 
@@ -85,7 +86,7 @@ func (s PeerRoute) equals(pr PeerRoute) bool {
 	return bytes.Equal(s[:], pr[:])
 }
 
-func (s *resourcesPool) Register(topics []Topic, app, peer byte) {
+func (s *resourcesPool) Register(mps []MethodPath, app, peer byte) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	if peer == 0 {
@@ -93,19 +94,19 @@ func (s *resourcesPool) Register(topics []Topic, app, peer byte) {
 	}
 	pr := PeerRoute{s.curPeer, app}
 
-	for _, topic := range topics {
-		if s.topicPeers[topic] == nil {
-			s.topicPeers[topic] = &PeersRoute{}
+	for _, mp := range mps {
+		if s.topicPeers[mp] == nil {
+			s.topicPeers[mp] = &PeersRoute{}
 		}
 		flag := true
-		for _, peerRoute := range *s.topicPeers[topic] {
+		for _, peerRoute := range *s.topicPeers[mp] {
 			if pr.equals(peerRoute) {
 				flag = false
 				break
 			}
 		}
 		if flag {
-			s.topicPeers[topic].append(pr)
+			s.topicPeers[mp].append(pr)
 		}
 	}
 }
@@ -125,16 +126,16 @@ func (s *resourcesPool) UnRegisterApp(app byte) {
 	}
 }
 
-func (s *resourcesPool) RouteIn(topic Topic) (interface{}, error) {
-	_, ok := s.topicPeers[topic]
+func (s *resourcesPool) RouteIn(mp MethodPath) (interface{}, error) {
+	_, ok := s.topicPeers[mp]
 	if !ok {
-		return nil, errors.New("Topic does not exist")
+		return nil, errors.New("MethodPath does not exist")
 	}
 	return nil, nil
 }
-func (s *resourcesPool) RouteOut(topic Topic) (interface{}, error) {
+func (s *resourcesPool) RouteOut(mp MethodPath) (interface{}, error) {
 	return nil, nil
 }
-func (s *resourcesPool) listTopicPeers() map[Topic]*PeersRoute {
+func (s *resourcesPool) listTopicPeers() map[MethodPath]*PeersRoute {
 	return s.topicPeers
 }
