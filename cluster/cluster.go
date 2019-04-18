@@ -1,9 +1,10 @@
 package cluster
 
 import (
+	"bufio"
+	"encoding/gob"
 	"errors"
 	"github.com/2se/dolphin/config"
-	rh "github.com/2se/dolphin/ringhash"
 	log "github.com/sirupsen/logrus"
 	"net"
 	"net/rpc"
@@ -14,34 +15,46 @@ import (
 const (
 	// Default timeout before attempting to reconnect to a node
 	defaultClusterReconnect = 200 * time.Millisecond
+
+	// 默认的net/rpc客户端连接超时时间
+	defaultDialTimeout = 5 * time.Second
+
 	// Number of replicas in ringhash
 	clusterHashReplicas = 20
+	tcpNetwork          = "tcp"
 )
 
 var (
 	NoConfigErr = errors.New("no configuration")
 	NoNodesErr  = errors.New("no peers defined")
 
-	gwCluster  *Cluster
+	gwCluster *Cluster
+	// singleMode 节点是否以单节点模式运行
 	singleMode bool
+	// peerConnCnf 模块内全局参数，
+	// 需要在各个方法调用前进行初始化。
+	// 后续节点连接其他对等节点时，会使用到该配置。如果该配置为nil，则使用默认的配置
+	peerConnCnf *config.ClusterConnectionConfig
 )
 
-func Init(cnf *config.ClusterConfig) (workerId int, err error) {
+// Init 初始化集群，返回本节点在集群中的名称
+func Init(cnf *config.ClusterConfig) (peerName string, err error) {
 	if cnf == nil {
-		return 0, NoConfigErr
+		return "", NoConfigErr
 	}
 
 	// Name of the current node is not specified - disable clustering
 	if cnf.Self == "" {
 		log.Println("Running as a standalone server.")
 		singleMode = true
-		return 1, nil
+		return "", nil
 	}
 
 	gwCluster = &Cluster{
 		thisName: cnf.Self,
 		peers:    make(map[string]*peer),
 	}
+	peerConnCnf = cnf.Connction
 
 	var nodeNames []string
 	for _, host := range cnf.Nodes {
@@ -61,17 +74,16 @@ func Init(cnf *config.ClusterConfig) (workerId int, err error) {
 	}
 
 	if len(gwCluster.peers) == 0 {
-		return 0, NoNodesErr
+		return "", NoNodesErr
 	}
 
 	if gwCluster.failoverInit(cnf.Failover) {
-		gwCluster.rehash(nil)
+		// TODO 是否返回 true false
+		//gwCluster.rehash(nil)
 	}
 
 	sort.Strings(nodeNames)
-	workerId = sort.SearchStrings(nodeNames, cnf.Self) + 1
-
-	return workerId, nil
+	return gwCluster.thisName, nil
 }
 
 func Start() {
@@ -79,13 +91,18 @@ func Start() {
 		return
 	}
 
-	addr, err := net.ResolveTCPAddr("tcp", gwCluster.listenOn)
+	addr, err := net.ResolveTCPAddr(tcpNetwork, gwCluster.listenOn)
 	if err != nil {
 		// 启动失败，打印日志并退出
 		log.Fatal(err)
 	}
 
-	if gwCluster.inbound, err = net.ListenTCP("tcp", addr); err != nil {
+	if gwCluster.inbound, err = net.ListenTCP(tcpNetwork, addr); err != nil {
+		log.Fatal(err)
+	}
+
+	err = rpc.Register(gwCluster)
+	if err != nil {
 		log.Fatal(err)
 	}
 
@@ -97,18 +114,40 @@ func Start() {
 		go gwCluster.run()
 	}
 
-	err = rpc.Register(gwCluster)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	go rpc.Accept(gwCluster.inbound)
+	go listen()
 
 	log.Printf("Cluster of %d peers initialized, node '%s' listening on [%s]",
 		len(gwCluster.peers)+1,
 		gwCluster.thisName,
 		gwCluster.listenOn,
 	)
+}
+
+func listen() {
+	if peerConnCnf != nil && peerConnCnf.DisableTimeout {
+		rpc.Accept(gwCluster.inbound)
+		return
+	}
+
+	for {
+		conn, err := gwCluster.inbound.Accept()
+		if err != nil {
+			log.Print("rpc.Serve: accept:", err.Error())
+			return
+		}
+
+		go func(conn net.Conn) {
+			buf := bufio.NewWriter(conn)
+			srv := &gobServerCodec{
+				rwc:    conn,
+				dec:    gob.NewDecoder(conn),
+				enc:    gob.NewEncoder(buf),
+				encBuf: buf,
+			}
+
+			rpc.ServeCodec(srv)
+		}(conn)
+	}
 }
 
 func Shutdown() {
@@ -129,10 +168,30 @@ func Shutdown() {
 	log.Println("Cluster shut down")
 }
 
-func Route() {
-	if singleMode {
-		// TODO 本节点处理
+// IsPartitioned checks if the cluster is partitioned due to network or other failure and if the
+// current node is a part of the smaller partition.
+func IsPartitioned() bool {
+	if gwCluster == nil || gwCluster.fo == nil {
+		// Cluster not initialized or failover disabled therefore not partitioned.
+		return false
 	}
+
+	return (len(gwCluster.peers)+1)/2 >= len(gwCluster.fo.activeNodes)
+}
+
+func Name() string {
+	if gwCluster != nil {
+		return gwCluster.thisName
+	}
+
+	return "local"
+}
+
+func Recv() {
+
+}
+
+func Emit() {
 
 }
 
@@ -146,27 +205,25 @@ type Cluster struct {
 	listenOn string
 	// 本节点的进群服务TCP
 	inbound *net.TCPListener
-	// 节点一致性哈希环
-	ring *rh.Ring
 	// Failover parameters. Could be nil if failover is not enabled
 	fo *clusterFailover
 }
 
-// Master
+// Emit
 // Called by a remote peer.
-func (c *Cluster) Master(msg *RequestPkt, rejected *bool) error {
+func (c *Cluster) Emit(msg *RequestPkt, rejected *bool) error {
 	log.Printf("cluster: Master request received from node '%s'", msg.Node)
-	if msg.Signature == c.ring.Signature() {
-		// TODO 处理具体的业务逻辑
-	} else {
-		*rejected = true
-	}
+	//if msg.Signature == c.ring.Signature() {
+	//	// TODO 处理具体的业务逻辑
+	//} else {
+	//	*rejected = true
+	//}
 	return nil
 }
 
-// Proxy receives messages from the master node addressed to a specific local memory.
+// Recv receives messages from the master node addressed to a specific local memory.
 // Called by remote peer
-func (c *Cluster) Proxy(msg *RespPkt, unused *bool) error {
+func (c *Cluster) Recv(msg *RespPkt, unused *bool) error {
 	log.Println("cluster: response from Master for session", msg.FromSID)
 	// TODO
 	return nil
@@ -196,25 +253,25 @@ func (c *Cluster) Vote(req *VoteRequest, resp *VoteResponse) error {
 
 // Recalculate the ring hash using provided list of peers or only peers in a non-failed state.
 // Returns the list of peers used for ring hash.
-func (c *Cluster) rehash(nodes []string) []string {
-	ring := rh.New(clusterHashReplicas, nil)
-
-	var ringKeys []string
-
-	if nodes == nil {
-		for _, node := range c.peers {
-			ringKeys = append(ringKeys, node.name)
-		}
-		ringKeys = append(ringKeys, c.thisName)
-	} else {
-		ringKeys = append(ringKeys, nodes...)
-	}
-	ring.Add(ringKeys...)
-
-	c.ring = ring
-
-	return ringKeys
-}
+//func (c *Cluster) rehash(nodes []string) []string {
+//	ring := rh.New(clusterHashReplicas, nil)
+//
+//	var ringKeys []string
+//
+//	if nodes == nil {
+//		for _, node := range c.peers {
+//			ringKeys = append(ringKeys, node.name)
+//		}
+//		ringKeys = append(ringKeys, c.thisName)
+//	} else {
+//		ringKeys = append(ringKeys, nodes...)
+//	}
+//	ring.Add(ringKeys...)
+//
+//	//c.ring = ring
+//
+//	return ringKeys
+//}
 
 // run
 // 1. 心跳检测
@@ -229,7 +286,7 @@ func (c *Cluster) run() {
 	missed := 0
 	// Don't rehash immediately on the first ping. If this node just came onlyne, leader will
 	// account it on the next ping. Otherwise it will be rehashing twice.
-	rehashSkipped := false
+	//rehashSkipped := false
 
 	for {
 		select {
@@ -272,17 +329,17 @@ func (c *Cluster) run() {
 			}
 
 			missed = 0
-			if ping.Signature != c.ring.Signature() {
-				if rehashSkipped {
-					log.Println("cluster: rehashing at a request of",
-						ping.Leader, ping.Nodes, ping.Signature, c.ring.Signature())
-					c.rehash(ping.Nodes)
-					rehashSkipped = false
-
-				} else {
-					rehashSkipped = true
-				}
-			}
+			//if ping.Signature != c.ring.Signature() {
+			//	if rehashSkipped {
+			//		log.Println("cluster: rehashing at a request of",
+			//			ping.Leader, ping.Nodes, ping.Signature, c.ring.Signature())
+			//		c.rehash(ping.Nodes)
+			//		rehashSkipped = false
+			//
+			//	} else {
+			//		rehashSkipped = true
+			//	}
+			//}
 
 		case vreq := <-c.fo.electionVote:
 			if c.fo.term < vreq.req.Term {

@@ -13,9 +13,20 @@ type Config struct {
 }
 
 type ClusterConfig struct {
-	Self     string
-	Nodes    []*ClusterNodeConfig
-	Failover *ClusterFailoverConfig
+	Self      string
+	Connction *ClusterConnectionConfig
+	Nodes     []*ClusterNodeConfig
+	Failover  *ClusterFailoverConfig
+}
+
+type ClusterConnectionConfig struct {
+	DialTimeout   duration
+	MaxDelay      duration
+	BaseDelay     duration
+	Factor        float64
+	Jitter        float64
+	DisableTimeout bool     `toml:"disable_timeout"`
+	WaitAfter     duration `toml:"wait_after"`
 }
 
 type ClusterNodeConfig struct {
@@ -112,8 +123,8 @@ func (acc *WsAutoCertConfig) String() string {
 }
 
 func (ccnf *ClusterConfig) String() string {
-	return fmt.Sprintf("\nCluster Config:\n Self(name): %s, \n Nodes(ClusterNodeConfig): %s\n Failover: %s",
-		ccnf.Self, ccnf.Nodes, ccnf.Failover)
+	return fmt.Sprintf("\nCluster Config:\n Self(name): %s, \nConnection: %s \n Nodes(ClusterNodeConfig): %s\n Failover: %s",
+		ccnf.Self, ccnf.Connction, ccnf.Nodes, ccnf.Failover)
 }
 
 func (cfc *ClusterFailoverConfig) String() string {
@@ -123,6 +134,12 @@ func (cfc *ClusterFailoverConfig) String() string {
 
 func (cnc *ClusterNodeConfig) String() string {
 	return fmt.Sprintf("\n{name: \"%s\", address: \"%s\"}", cnc.Name, cnc.Address)
+}
+
+func (ccc *ClusterConnectionConfig) String() string {
+	return fmt.Sprintf("[connection] dial timeout: %s, (backoff) max delay: %s, " +
+		"base delay: %s, factor: %f, jitter: %f, disable_timeout: %v, wait_after: %s",
+		ccc.DialTimeout, ccc.MaxDelay, ccc.BaseDelay, ccc.Factor, ccc.Jitter, ccc.DisableTimeout, ccc.WaitAfter)
 }
 
 func (ebc *EventBusConfig) String() string {
@@ -141,6 +158,10 @@ func (pcnf *PluginConfig) String() string {
 
 type duration struct {
 	time.Duration
+}
+
+func (d *duration) Get() time.Duration {
+	return d.Duration
 }
 
 func (d *duration) UnmarshalText(text []byte) (err error) {

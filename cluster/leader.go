@@ -49,7 +49,8 @@ func (c *Cluster) failoverInit(config *config.ClusterFailoverConfig) bool {
 		activeNodes = append(activeNodes, node.name)
 	}
 	activeNodes = append(activeNodes, c.thisName)
-	c.rehash(activeNodes)
+	// 一致性
+	//c.rehash(activeNodes)
 
 	// Random heartbeat ticker: 0.75 * config.HeartBeat + random(0, 0.5 * config.HeartBeat)
 	rand.Seed(time.Now().UnixNano())
@@ -78,7 +79,6 @@ func (c *Cluster) sendPings() {
 		err := node.call("Cluster.Ping", &PingRequest{
 			Leader:    c.thisName,
 			Term:      c.fo.term,
-			Signature: c.ring.Signature(),
 			Nodes:     c.fo.activeNodes}, &unused)
 
 		if err != nil {
@@ -106,7 +106,7 @@ func (c *Cluster) sendPings() {
 		activeNodes = append(activeNodes, c.thisName)
 
 		c.fo.activeNodes = activeNodes
-		c.rehash(activeNodes)
+		//c.rehash(activeNodes)
 
 		log.Println("cluster: initiating failover rehash for peers", activeNodes)
 	}
