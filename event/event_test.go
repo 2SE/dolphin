@@ -20,11 +20,7 @@ func TestOn(t *testing.T) {
 
 	emitter.On(fireEvent, response(wg, t))
 	event := &GenericEvent{
-		Topic: &Topic{
-			Version: 0x01,
-			Source:  0x02,
-			Action:  0x03,
-		},
+		Topic: Topic{1, 2, 3},
 	}
 
 	for i := 0; i < fireTimes; i++ {

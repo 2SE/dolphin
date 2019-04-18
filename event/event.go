@@ -11,35 +11,30 @@ import (
 // unSubscribeAll Type = "unSubscribeAll"
 type Type byte
 
-type topicKey [3]byte
+type Topic [3]byte
 
-type Topic struct {
-	Version byte
-	Source  byte
-	Action  byte
-}
-
-func (e *Topic) key() topicKey {
-	return topicKey{e.Version, e.Source, e.Action}
+type Topicer interface {
+	GetTopic() Topic
+	GetKey() byte
 }
 
 //Event ...
 type Event interface {
-	GetTopic() topicKey
+	GetTopic() Topic
 	GetMetaData() []byte
 	GetData() []byte
 }
 
 //GenericEvent ...
 type GenericEvent struct {
-	Topic *Topic
+	Topic Topic
 	Meta  []byte
 	Data  []byte
 }
 
 //GetType ...
-func (e *GenericEvent) GetTopic() topicKey {
-	return e.Topic.key()
+func (e *GenericEvent) GetTopic() Topic {
+	return e.Topic
 }
 
 //GetMetaData ...
@@ -57,9 +52,9 @@ type Callback func(event Event)
 
 //Emitter ...
 type Emitter interface {
-	On(topic *Topic, callback Callback) (identity uintptr)
-	Once(topic *Topic) (identity uintptr, event <-chan Event)
-	Subscribe(topic *Topic) (identity uintptr, event <-chan Event)
+	On(topicer Topic, callback Callback) (identity uintptr)
+	Once(topicer Topic) (identity uintptr, event <-chan Event)
+	Subscribe(topicer Topic) (identity uintptr, event <-chan Event)
 	UnSubscribe(identity ...uintptr)
 	UnSubscribeAll()
 	Emit(event ...Event)
@@ -70,7 +65,7 @@ type Emitter interface {
 // when unsubscribe event, the channel sending event will automate be closed
 func NewEmitter(eventBufSize int) Emitter {
 	emitter := new(eventEmitter)
-	emitter.hub = make(map[topicKey]*broadcaster)
+	emitter.hub = make(map[Topic]*broadcaster)
 	emitter.eventListener = make(chan Event)
 	emitter.observer = make(chan subscriber)
 	if eventBufSize <= 0 {
@@ -82,7 +77,7 @@ func NewEmitter(eventBufSize int) Emitter {
 }
 
 type eventEmitter struct {
-	hub           map[topicKey]*broadcaster
+	hub           map[Topic]*broadcaster
 	eventListener chan Event
 	observer      chan subscriber
 	eventBufSize  int
@@ -98,7 +93,7 @@ func (e *eventEmitter) dispatch() {
 		case suber := <-e.observer:
 			switch suber.subscribeAction {
 			case subscribe:
-				b, ok := e.hub[suber.topic.key()]
+				b, ok := e.hub[suber.topic]
 				if !ok {
 					b = new(broadcaster)
 					b.subers = make(map[uintptr]subscriber)
@@ -107,7 +102,7 @@ func (e *eventEmitter) dispatch() {
 					b.eventBufSize = e.eventBufSize
 					b.emitter = e
 					go b.start()
-					e.hub[suber.topic.key()] = b
+					e.hub[suber.topic] = b
 				}
 				b.dealRegister(suber)
 			case unSubscribe:
@@ -125,20 +120,20 @@ func (e *eventEmitter) unSubscribe(suber subscriber) {
 	}
 }
 
-func (e *eventEmitter) On(topic *Topic, callback Callback) (identity uintptr) {
+func (e *eventEmitter) On(topic Topic, callback Callback) (identity uintptr) {
 	identity, _ = e.doSubscribe(topic, fireAllways, callback)
 	return
 }
 
-func (e *eventEmitter) Once(topic *Topic) (uintptr, <-chan Event) {
+func (e *eventEmitter) Once(topic Topic) (uintptr, <-chan Event) {
 	return e.doSubscribe(topic, fireOnce, nil)
 }
 
-func (e *eventEmitter) Subscribe(topic *Topic) (uintptr, <-chan Event) {
+func (e *eventEmitter) Subscribe(topic Topic) (uintptr, <-chan Event) {
 	return e.doSubscribe(topic, fireAllways, nil)
 }
 
-func (e *eventEmitter) doSubscribe(topic *Topic, subType subscribeType, callback Callback) (uintptr, <-chan Event) {
+func (e *eventEmitter) doSubscribe(topic Topic, subType subscribeType, callback Callback) (uintptr, <-chan Event) {
 	//identity := uuid.New()
 	response := make(chan chan Event)
 	ptr := uintptr(unsafe.Pointer(&callback))
@@ -198,7 +193,7 @@ const (
 type subscriber struct {
 	identity        uintptr //string
 	callback        Callback
-	topic           *Topic
+	topic           Topic
 	subscribeType   subscribeType
 	subscribeAction Type
 	response        chan chan Event
@@ -279,11 +274,11 @@ func (b *broadcaster) processUnSubscribeAll(suber subscriber) {
 	}
 }
 
-func (b *broadcaster) checkEmpty(topic *Topic) {
+func (b *broadcaster) checkEmpty(topic Topic) {
 	if len(b.subers) == 0 {
 		//clean the parent event type
 		//will error?
-		delete(b.emitter.hub, topic.key())
+		delete(b.emitter.hub, topic)
 	}
 }
 

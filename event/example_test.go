@@ -10,11 +10,7 @@ import (
 )
 
 var (
-	fireEvent = &Topic{
-		Version: 0x01,
-		Source:  0x02,
-		Action:  0x03,
-	}
+	fireEvent = Topic{1, 2, 3}
 )
 
 func Example_newEmitter() {

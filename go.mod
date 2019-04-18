@@ -7,6 +7,7 @@ require (
 	github.com/gobwas/httphead v0.0.0-20180130184737-2c6c146eadee // indirect
 	github.com/gobwas/pool v0.2.0 // indirect
 	github.com/gobwas/ws v1.0.0
+	github.com/magiconair/properties v1.8.0
 	github.com/segmentio/kafka-go v0.2.2 // indirect
 	github.com/sirupsen/logrus v1.4.1
 	golang.org/x/crypto v0.0.0-20190411191339-88737f569e3a
