@@ -1,7 +1,6 @@
 package route
 
 import (
-	"bytes"
 	"errors"
 	"sync"
 )
@@ -15,19 +14,18 @@ type Router interface {
 	RouteIn(mp MethodPath) (interface{}, error)
 	RouteOut(mp MethodPath) (interface{}, error)
 	//注册单个app上所有资源,peer 为 0 是默认本地
-	Register(mps []MethodPath, app, peer byte)
+	Register(mps []MethodPath, appName, peerName string)
 	//注销app下所有
-	UnRegisterApp(appKey byte)
+	UnRegisterApp(appName string)
 	//注销peer下所有
-	UnRegisterPeer(peer byte)
-
+	UnRegisterPeer(peerName string)
 	//for unit test
 	listTopicPeers() map[MethodPath]*PeersRoute
 }
 
 // 初始化本地route
 // peer 本地cluster 编号
-func NewRoute(peer byte) Router {
+func NewRoute(peer string) Router {
 	route := &resourcesPool{
 		curPeer:    peer,
 		topicPeers: make(map[MethodPath]*PeersRoute),
@@ -36,12 +34,12 @@ func NewRoute(peer byte) Router {
 }
 
 type resourcesPool struct {
-	curPeer    byte
+	curPeer    string
 	topicPeers map[MethodPath]*PeersRoute
 	m          sync.RWMutex
 }
 
-type PeerRoute [2]byte
+type PeerRoute [2]string
 
 type PeersRoute []PeerRoute
 
@@ -53,7 +51,7 @@ func (s PeersRoute) Less(i, j int) bool {
 func (s *PeersRoute) append(pr PeerRoute) {
 	*s = append(*s, pr)
 }
-func (s *PeersRoute) removeByPeer(peer byte) {
+func (s *PeersRoute) removeByPeer(peer string) {
 	for k, v := range *s {
 		if v[0] == peer {
 			if k == 0 {
@@ -67,7 +65,7 @@ func (s *PeersRoute) removeByPeer(peer byte) {
 		}
 	}
 }
-func (s *PeersRoute) removeByApp(app byte) {
+func (s *PeersRoute) removeByApp(app string) {
 	for k, v := range *s {
 		if v[1] == app {
 			if k == 0 {
@@ -83,16 +81,16 @@ func (s *PeersRoute) removeByApp(app byte) {
 }
 
 func (s PeerRoute) equals(pr PeerRoute) bool {
-	return bytes.Equal(s[:], pr[:])
+	return s == pr
 }
 
-func (s *resourcesPool) Register(mps []MethodPath, app, peer byte) {
+func (s *resourcesPool) Register(mps []MethodPath, appName, peerName string) {
 	s.m.Lock()
 	defer s.m.Unlock()
-	if peer == 0 {
-		peer = s.curPeer
+	if peerName == "" {
+		peerName = s.curPeer
 	}
-	pr := PeerRoute{s.curPeer, app}
+	pr := PeerRoute{s.curPeer, appName}
 
 	for _, mp := range mps {
 		if s.topicPeers[mp] == nil {
@@ -100,7 +98,7 @@ func (s *resourcesPool) Register(mps []MethodPath, app, peer byte) {
 		}
 		flag := true
 		for _, peerRoute := range *s.topicPeers[mp] {
-			if pr.equals(peerRoute) {
+			if pr == peerRoute {
 				flag = false
 				break
 			}
@@ -111,18 +109,18 @@ func (s *resourcesPool) Register(mps []MethodPath, app, peer byte) {
 	}
 }
 
-func (s *resourcesPool) UnRegisterPeer(peer byte) {
+func (s *resourcesPool) UnRegisterPeer(peerName string) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	for _, prs := range s.topicPeers {
-		prs.removeByPeer(peer)
+		prs.removeByPeer(peerName)
 	}
 }
-func (s *resourcesPool) UnRegisterApp(app byte) {
+func (s *resourcesPool) UnRegisterApp(appName string) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	for _, prs := range s.topicPeers {
-		prs.removeByApp(app)
+		prs.removeByApp(appName)
 	}
 }
 

@@ -38,6 +38,13 @@ message AppInfo {
     string name = 1;
     repeated string topics = 2;
 }
+message MethodPath {
+    string version =1;
+    string resource =2;
+    string action =3;
+    //version resource action
+    bytes vra=4;
+}
 
 message RegReply {
     bool accepted = 1;
