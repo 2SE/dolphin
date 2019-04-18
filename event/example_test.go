@@ -34,7 +34,7 @@ func Example_newEmitter() {
 
 	emitter := NewEmitter(2)
 
-	c := make(chan uintptr, 1)
+	c := make(chan string, 1)
 	go func() {
 		identity, listener := emitter.Subscribe(fireEvent)
 		if listener == nil {

@@ -13,7 +13,7 @@ type MethodPath [3]byte
 var r *resourcesPool
 
 type Router interface {
-	RouteIn(mp MethodPath) (interface{}, error)
+	RouteIn(mp MethodPath, userId string) (interface{}, error)
 	RouteOut(mp MethodPath) (interface{}, error)
 	//注册单个app上所有资源,peer 为 0 是默认本地
 	Register(mps []MethodPath, appName, peerName string)
@@ -135,6 +135,7 @@ func (s *resourcesPool) RouteIn(mp MethodPath) (interface{}, error) {
 	if !ok {
 		return nil, errors.New("MethodPath does not exist")
 	}
+
 	return nil, nil
 }
 func (s *resourcesPool) RouteOut(mp MethodPath) (interface{}, error) {

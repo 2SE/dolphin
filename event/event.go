@@ -1,7 +1,7 @@
 package event
 
 import (
-	"unsafe"
+	"github.com/google/uuid"
 )
 
 //Type Event type. you can define custom event type
@@ -47,12 +47,14 @@ func (e *GenericEvent) GetData() []byte {
 //Callback ...
 type Callback func(event Event)
 
+type Callback2 interface{}
+
 //Emitter ...
 type Emitter interface {
-	On(topicer Topicer, callback Callback) (identity uintptr)
-	Once(topicer Topicer) (identity uintptr, event <-chan Event)
-	Subscribe(topicer Topicer) (identity uintptr, event <-chan Event)
-	UnSubscribe(identity ...uintptr)
+	On(topicer Topicer, callback Callback) (identity string)
+	Once(topicer Topicer) (identity string, event <-chan Event)
+	Subscribe(topicer Topicer) (identity string, event <-chan Event)
+	UnSubscribe(identity ...string)
 	UnSubscribeAll()
 	Emit(event ...Event)
 }
@@ -93,7 +95,7 @@ func (e *eventEmitter) dispatch() {
 				b, ok := e.hub[suber.topic]
 				if !ok {
 					b = new(broadcaster)
-					b.subers = make(map[uintptr]subscriber)
+					b.subers = make(map[string]subscriber)
 					b.pipeline = make(chan Event)
 					b.observer = make(chan subscriber)
 					b.eventBufSize = e.eventBufSize
@@ -117,25 +119,24 @@ func (e *eventEmitter) unSubscribe(suber subscriber) {
 	}
 }
 
-func (e *eventEmitter) On(topicer Topicer, callback Callback) (identity uintptr) {
+func (e *eventEmitter) On(topicer Topicer, callback Callback) (identity string) {
 	identity, _ = e.doSubscribe(topicer, fireAllways, callback)
 	return
 }
 
-func (e *eventEmitter) Once(topicer Topicer) (uintptr, <-chan Event) {
+func (e *eventEmitter) Once(topicer Topicer) (string, <-chan Event) {
 	return e.doSubscribe(topicer, fireOnce, nil)
 }
 
-func (e *eventEmitter) Subscribe(topicer Topicer) (uintptr, <-chan Event) {
+func (e *eventEmitter) Subscribe(topicer Topicer) (string, <-chan Event) {
 	return e.doSubscribe(topicer, fireAllways, nil)
 }
 
-func (e *eventEmitter) doSubscribe(topicer Topicer, subType subscribeType, callback Callback) (uintptr, <-chan Event) {
-	//identity := uuid.New()
+func (e *eventEmitter) doSubscribe(topicer Topicer, subType subscribeType, callback Callback) (string, <-chan Event) {
+	identity := uuid.New().String()
 	response := make(chan chan Event)
-	ptr := uintptr(unsafe.Pointer(&callback))
 	e.observer <- subscriber{
-		identity:        ptr,
+		identity:        identity,
 		callback:        callback,
 		subscribeAction: subscribe,
 		topic:           topicer,
@@ -145,18 +146,18 @@ func (e *eventEmitter) doSubscribe(topicer Topicer, subType subscribeType, callb
 
 	event, ok := <-response
 	if !ok {
-		return 0, nil
+		return "", nil
 	}
 
 	if callback != nil {
 		close(event)
-		return ptr, nil
+		return identity, nil
 	}
 
-	return ptr, event
+	return identity, event
 }
 
-func (e *eventEmitter) UnSubscribe(identities ...uintptr) {
+func (e *eventEmitter) UnSubscribe(identities ...string) {
 	for _, identity := range identities {
 		e.observer <- subscriber{
 			identity:        identity,
@@ -188,7 +189,7 @@ const (
 )
 
 type subscriber struct {
-	identity        uintptr //string
+	identity        string //string
 	callback        Callback
 	topic           Topicer
 	subscribeType   subscribeType
@@ -198,7 +199,7 @@ type subscriber struct {
 }
 
 type broadcaster struct {
-	subers       map[uintptr]subscriber
+	subers       map[string]subscriber
 	pipeline     chan Event
 	observer     chan subscriber
 	eventBufSize int

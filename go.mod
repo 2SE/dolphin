@@ -8,6 +8,7 @@ require (
 	github.com/gobwas/pool v0.2.0 // indirect
 	github.com/gobwas/ws v1.0.0
 	github.com/golang/protobuf v1.3.2-0.20190409050943-e91709a02e0e
+	github.com/google/uuid v1.1.1
 	github.com/magiconair/properties v1.8.0
 	github.com/segmentio/kafka-go v0.2.2 // indirect
 	github.com/sirupsen/logrus v1.4.1

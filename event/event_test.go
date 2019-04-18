@@ -7,27 +7,50 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 )
 
 const (
-	fireTimes = 10
+	fireTimes = 11
 )
 
 func TestOn(t *testing.T) {
 	emitter := NewEmitter(2)
-	wg := new(sync.WaitGroup)
-	wg.Add(fireTimes)
+	//wg := new(sync.WaitGroup)
+	//wg.Add(fireTimes)
+	//response channel
+	//emitter.On(fireEvent, response(wg, t))
+	id, eve := emitter.Subscribe(fireEvent)
 
-	emitter.On(fireEvent, response(wg, t))
-	for i := 0; i < fireTimes; i++ {
-		event := &GenericEvent{
-			Topic: fireEvent,
+	go func() {
+		for i := 0; i < 100000000000; i++ {
+			time.Sleep(time.Millisecond * 100)
+			event := &GenericEvent{
+				Topic: fireEvent,
+			}
+			event.Data = []byte(fmt.Sprintf("fire in the hole %d", i+1))
+			emitter.Emit(event)
 		}
-		event.Data = []byte(fmt.Sprintf("fire in the hole %d", i+1))
-		emitter.Emit(event)
-	}
+	}()
+	go func() {
+		for c := range eve {
+			fmt.Println(c)
+			//wg.Done()
+		}
+	}()
+	go func() {
+		t := time.NewTicker(time.Second * 1)
+		for {
+			select {
+			case <-t.C:
+				emitter.UnSubscribe(id)
+			}
+		}
+	}()
 	t.Log("event emitted.")
-	wg.Wait()
+	//wg.Wait()
+	//close(ch)
+	select {}
 	t.Log("Testing finished.")
 }
 
