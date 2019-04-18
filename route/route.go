@@ -10,6 +10,8 @@ import (
 // third byte  : action
 type MethodPath [3]byte
 
+var r *resourcesPool
+
 type Router interface {
 	RouteIn(mp MethodPath) (interface{}, error)
 	RouteOut(mp MethodPath) (interface{}, error)
@@ -23,9 +25,13 @@ type Router interface {
 	listTopicPeers() map[MethodPath]*PeersRoute
 }
 
+func GetRouterInstance() Router {
+	return r
+}
+
 // 初始化本地route
 // peer 本地cluster 编号
-func NewRoute(peer string) Router {
+func InitRoute(peer string) Router {
 	route := &resourcesPool{
 		curPeer:    peer,
 		topicPeers: make(map[MethodPath]*PeersRoute),

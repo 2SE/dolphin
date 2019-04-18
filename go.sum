@@ -23,6 +23,10 @@ github.com/golang/net v0.0.0-20190311183353-d8887717615a/go.mod h1:t9HGtf8HONx5e
 github.com/golang/oauth2 v0.0.0-20180821212333-d2e6202438be/go.mod h1:ovBFgdmJqyggKzXS0i5+osE+RsPEbEsUfp2sVCgys1Q=
 github.com/golang/protobuf v1.2.0 h1:P3YflyNX/ehuJFLhxviNdFxQPkGK5cDcApsge1SqnvM=
 github.com/golang/protobuf v1.2.0/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5yJMmIC1U=
+github.com/golang/protobuf v1.3.1 h1:YF8+flBXS5eO826T4nzqPrxfhQThhXl0YzfuUPu4SBg=
+github.com/golang/protobuf v1.3.1/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5yJMmIC1U=
+github.com/golang/protobuf v1.3.2-0.20190409050943-e91709a02e0e h1:dp7vsqt9GbeWuOeN1LFzHzvKlx1QfELtGxJ5z1g27KU=
+github.com/golang/protobuf v1.3.2-0.20190409050943-e91709a02e0e/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5yJMmIC1U=
 github.com/golang/sync v0.0.0-20180314180146-1d60e4601c6f/go.mod h1:YCHYtYb9c8Q7XgYVYjmJBPtFPKx5QvOcPxHZWjldabE=
 github.com/golang/sys v0.0.0-20180905080454-ebe1bf3edb33/go.mod h1:5JyrLPvD/ZdaYkT7IqKhsP5xt7aLjA99KXRtk4EIYDk=
 github.com/golang/sys v0.0.0-20190215142949-d0b11bdaac8a h1:oYD1IcL/DulbKcctKHzl4GERcTLIwgXqVdKPEalj1JQ=
