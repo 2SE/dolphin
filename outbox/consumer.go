@@ -33,14 +33,19 @@ func (kv *KV) GetData() []byte {
 	return kv.Val
 }
 
-func consumerTopic(kafkaURL, topic, groupID string, partition int, pusher event.Emitter) {
+func consumerTopic(kafkaURL, topic, groupID string, partition int, offset int64, pusher event.Emitter) error {
 	reader := getKafkaReader(kafkaURL, topic, groupID, partition)
 	defer reader.Close()
+	err := reader.SetOffset(offset)
+	if err != nil {
+		return err
+	}
 	fmt.Println("start consuming ... !!")
 	for {
 		m, err := reader.ReadMessage(context.Background())
 		if err != nil {
 			fmt.Println("err :", err)
+			continue
 		}
 		pusher.Emit(&KV{
 			Key: m.Key,

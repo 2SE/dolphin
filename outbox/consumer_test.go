@@ -20,7 +20,7 @@ func TestConsumerEvent(t *testing.T) {
 	emitter := event.NewEmitter(2)
 	_, eve := emitter.Subscribe(tpc)
 	go func() {
-		consumerTopic("www.rennbon.com:9092", "ttt1", "", 0, emitter)
+		consumerTopic("www.rennbon.com:9092", "ttt1", "", 0, 3, emitter)
 
 	}()
 	for c := range eve {
