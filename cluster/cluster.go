@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"github.com/2se/dolphin/config"
+	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 	"net"
 	"net/rpc"
@@ -15,21 +16,19 @@ const (
 	// 默认的在首次重连节点前超时等待时间
 	// 如果多次重连节点，连接等待超时时间根据backoff算法会不断延长
 	defaultClusterReconnect = 200 * time.Millisecond
-
 	// 默认的net/rpc客户端连接超时时间
 	defaultDialTimeout = 5 * time.Second
 
-	tcpNetwork = "tcp"
-
-	LocalPeer = "local"
-
+	LocalPeer        = "local"
+	tcpNetwork       = "tcp"
 	defaultVoteAfter = 8
 	defaultFailAfter = 16
 )
 
 var (
-	NoConfigErr = errors.New("no configuration")
-	NoNodesErr  = errors.New("no peers defined")
+	NoConfigErr    = errors.New("no configuration")
+	NoNodesErr     = errors.New("no peers defined")
+	PartitionedErr = errors.New("cluster partitioned")
 
 	// gwCluster 表示集群中的本节点。如果gwCluster为nil，表示当前以单节点运行，而非集群模式。
 	gwCluster *Cluster
@@ -200,40 +199,84 @@ func Name() string {
 	return LocalPeer
 }
 
-func Recv() {
+// Recv call remote Cluster.Recv
+// The request from remote peer`s broadcast.
+func Recv(message proto.Message) {
+	if Partitioned() {
+		log.Warnf("Recv: %v", PartitionedErr)
+		return
+	}
 
+	req := &RequestPkt{
+		Node: gwCluster.thisName,
+		Pkt:  message,
+	}
+	nodeCount := len(gwCluster.peers)
+	done := make(chan *rpc.Call, nodeCount)
+	for _, peer := range gwCluster.peers {
+		resp := RespPkt{}
+		peer.callAsync("Cluster.Recv", req, &resp, done)
+	}
+
+	// TODO change timeout time
+	timeout := time.NewTimer(defaultTimeout)
+	for i := 0; i < nodeCount; i++ {
+		select {
+		case call := <-done:
+			if call.Error != nil {
+				log.Warnf("cluster: call remote method failed. cause: %v", call.Error)
+			}
+		case <-timeout.C:
+			i = nodeCount
+		}
+	}
+
+	if !timeout.Stop() {
+		<-timeout.C
+	}
 }
 
-func Emit() {
+// Emit call remote Cluster.Emit
+// the request from client
+// it will choose one peer to send request and reecived call back response
+func Emit(toPeer string, message proto.Message) (response proto.Message, err error) {
+	if Partitioned() {
+		return nil, PartitionedErr
+	}
 
+	if peer, ok := gwCluster.peers[toPeer]; ok {
+		req := &RequestPkt{
+			Node:      gwCluster.thisName,
+			Signature: "xxx",
+			Pkt:       message,
+		}
+
+		resp := &RespPkt{}
+		if err = peer.call("Cluster.Emit", req, resp); err != nil {
+			return nil, err
+		}
+
+		response = resp.Pkt
+	}
+
+	// TODO return error
+	return
 }
 
 // 集群有两个角色一个是主节点角色，一个是从节点角色。在同一时间，集群的节点只承担一种角色
 type Cluster struct {
-	// 集群中其他的节点列表
-	peers map[string]*peer
-	// 本节点的名称
-	thisName string
-	// 本节点的集群服务地址
-	listenOn string
-	// 本节点的进群服务TCP
-	inbound *net.TCPListener
-	// Failover parameters. Could be nil if failover is not enabled
-	fo *clusterFailover
+	peers    map[string]*peer // 集群中其他的节点列表
+	thisName string           // 本节点的名称
+	listenOn string           // 本节点的集群服务地址
+	inbound  *net.TCPListener // 本节点的进群服务TCP
+	fo       *clusterFailover // Failover parameters. Could be nil if failover is not enabled
 }
 
-// Emit 用于接收来自远程节点的APP请求调用，并调用本地Router.RouteOut方法
-// 看作是客户端发起的调用
-// Called by a remote peer.
-func (c *Cluster) Emit(msg *RequestPkt, rejected *bool) error {
+// Emit called by a remote peer.
+func (c *Cluster) Emit(msg *RequestPkt, resp *RespPkt) error {
 	log.Printf("cluster: Master request received from node '%s'", msg.Node)
-	// 调用Router模块的 RouteOut方法
+	// TODO 调用Router模块的 RouteOut方法
 
-	//if msg.Signature == c.ring.Signature() {
-	//	// TODO 处理具体的业务逻辑
-	//} else {
-	//	*rejected = true
-	//}
 	return nil
 }
 
@@ -241,7 +284,7 @@ func (c *Cluster) Emit(msg *RequestPkt, rejected *bool) error {
 // 看作是内部节点对其他节点的广播，不对客户端开放
 // Called by remote peer
 func (c *Cluster) Recv(msg *RespPkt, unused *bool) error {
-	log.Println("cluster: response from Master for session", msg.FromSID)
+	log.Println("cluster: response from Master for session ", msg.Node)
 	// TODO
 	return nil
 }
