@@ -8,53 +8,61 @@ import (
 	log "github.com/sirupsen/logrus"
 	"net"
 	"net/rpc"
-	"sort"
 	"time"
 )
 
 const (
-	// Default timeout before attempting to reconnect to a node
+	// 默认的在首次重连节点前超时等待时间
+	// 如果多次重连节点，连接等待超时时间根据backoff算法会不断延长
 	defaultClusterReconnect = 200 * time.Millisecond
 
 	// 默认的net/rpc客户端连接超时时间
 	defaultDialTimeout = 5 * time.Second
 
-	// Number of replicas in ringhash
-	clusterHashReplicas = 20
-	tcpNetwork          = "tcp"
+	tcpNetwork = "tcp"
+
+	LocalPeer = "local"
+
+	defaultVoteAfter = 8
+	defaultFailAfter = 16
 )
 
 var (
 	NoConfigErr = errors.New("no configuration")
 	NoNodesErr  = errors.New("no peers defined")
 
+	// gwCluster 表示集群中的本节点。如果gwCluster为nil，表示当前以单节点运行，而非集群模式。
 	gwCluster *Cluster
-	// singleMode 节点是否以单节点模式运行
-	singleMode bool
-	// peerConnCnf 模块内全局参数，
-	// 需要在各个方法调用前进行初始化。
-	// 后续节点连接其他对等节点时，会使用到该配置。如果该配置为nil，则使用默认的配置
+
+	// peerConnCnf 集群内节点之间连接的配置
+	// 连接配置需要在集群模块初始化时进行初始化
+	// 如果该配置为nil，与连接配置相关的功能将使用默认参数
 	peerConnCnf *config.ClusterConnectionConfig
 )
 
 // Init 初始化集群，返回本节点在集群中的名称
+// 如果是单实例模式，节点名称为local
+// 如果是集群模式，节点名称为配置文件中定义的本节点的名称
+// 如果未传入配置文件，返回错误，节点名称为空字符串
 func Init(cnf *config.ClusterConfig) (peerName string, err error) {
+	log.Debug("cluster: starting init")
 	if cnf == nil {
+		log.Errorf("cluster: %s", NoConfigErr)
 		return "", NoConfigErr
 	}
 
 	// Name of the current node is not specified - disable clustering
 	if cnf.Self == "" {
-		log.Println("Running as a standalone server.")
-		singleMode = true
-		return "", nil
+		log.Debug("cluster: config with a singleton mode.")
+		return LocalPeer, nil
 	}
 
 	gwCluster = &Cluster{
 		thisName: cnf.Self,
 		peers:    make(map[string]*peer),
 	}
-	peerConnCnf = cnf.Connction
+	peerConnCnf = cnf.Connection
+	log.WithField("peer config", peerConnCnf).Debug("cluster: peer config check")
 
 	var nodeNames []string
 	for _, host := range cnf.Nodes {
@@ -74,49 +82,49 @@ func Init(cnf *config.ClusterConfig) (peerName string, err error) {
 	}
 
 	if len(gwCluster.peers) == 0 {
+		log.Error("cluster: no configuration for cluster")
 		return "", NoNodesErr
 	}
 
-	if gwCluster.failoverInit(cnf.Failover) {
-		// TODO 是否返回 true false
-		//gwCluster.rehash(nil)
-	}
-
-	sort.Strings(nodeNames)
+	gwCluster.failoverInit(cnf.Failover)
+	log.Debug("cluster: cluster inited")
 	return gwCluster.thisName, nil
 }
 
 func Start() {
-	if singleMode {
+	log.Debug("cluster: starting now...")
+	if gwCluster == nil {
+		log.Info("cluster: runing in singleton mode")
 		return
 	}
 
 	addr, err := net.ResolveTCPAddr(tcpNetwork, gwCluster.listenOn)
 	if err != nil {
 		// 启动失败，打印日志并退出
-		log.Fatal(err)
+		log.WithError(err).Fatal("cluster: parse ip address failed! exit(1)")
 	}
 
 	if gwCluster.inbound, err = net.ListenTCP(tcpNetwork, addr); err != nil {
-		log.Fatal(err)
+		log.WithError(err).Fatal("cluster: starting tcp listener failed! exit(1)")
 	}
 
-	err = rpc.Register(gwCluster)
-	if err != nil {
-		log.Fatal(err)
-	}
+	go listen()
 
 	for _, n := range gwCluster.peers {
 		go n.reconnect()
 	}
+	log.Debug("cluster: all remote peers connected successful")
 
 	if gwCluster.fo != nil {
 		go gwCluster.run()
 	}
 
-	go listen()
+	err = rpc.Register(gwCluster)
+	if err != nil {
+		log.WithError(err).Fatal("cluster: register net/rpc service failed! exit(1)")
+	}
 
-	log.Printf("Cluster of %d peers initialized, node '%s' listening on [%s]",
+	log.Infof("[cluster] cluster of %d peers initialized, node '%s' listening on [%s]",
 		len(gwCluster.peers)+1,
 		gwCluster.thisName,
 		gwCluster.listenOn,
@@ -124,15 +132,18 @@ func Start() {
 }
 
 func listen() {
-	if peerConnCnf != nil && peerConnCnf.DisableTimeout {
+	if peerConnCnf != nil && peerConnCnf.DisableReqTimeout {
+		log.Info("cluster: using default net/rpc server to handle request logic")
 		rpc.Accept(gwCluster.inbound)
+		log.Debug("cluster: net/rpc server stopped")
 		return
 	}
 
+	log.Info("cluster: using net/rpc server with timeout mechanism to handle request logic")
 	for {
 		conn, err := gwCluster.inbound.Accept()
 		if err != nil {
-			log.Print("rpc.Serve: accept:", err.Error())
+			log.Warnf("cluster: %v", err)
 			return
 		}
 
@@ -151,11 +162,10 @@ func listen() {
 }
 
 func Shutdown() {
-	if singleMode {
+	if gwCluster == nil {
+		log.Debug("cluster: singelton mode, and exit quickly")
 		return
 	}
-
-	gwCluster.inbound.Close()
 
 	if gwCluster.fo != nil {
 		gwCluster.fo.done <- true
@@ -165,12 +175,15 @@ func Shutdown() {
 		n.done <- true
 	}
 
-	log.Println("Cluster shut down")
+	time.Sleep(time.Second)
+	gwCluster.inbound.Close()
+
+	log.Info("cluster: cluster stopped")
 }
 
-// IsPartitioned checks if the cluster is partitioned due to network or other failure and if the
+// Partitioned checks if the cluster is partitioned due to network or other failure and if the
 // current node is a part of the smaller partition.
-func IsPartitioned() bool {
+func Partitioned() bool {
 	if gwCluster == nil || gwCluster.fo == nil {
 		// Cluster not initialized or failover disabled therefore not partitioned.
 		return false
@@ -184,7 +197,7 @@ func Name() string {
 		return gwCluster.thisName
 	}
 
-	return "local"
+	return LocalPeer
 }
 
 func Recv() {
@@ -209,10 +222,13 @@ type Cluster struct {
 	fo *clusterFailover
 }
 
-// Emit
+// Emit 用于接收来自远程节点的APP请求调用，并调用本地Router.RouteOut方法
+// 看作是客户端发起的调用
 // Called by a remote peer.
 func (c *Cluster) Emit(msg *RequestPkt, rejected *bool) error {
 	log.Printf("cluster: Master request received from node '%s'", msg.Node)
+	// 调用Router模块的 RouteOut方法
+
 	//if msg.Signature == c.ring.Signature() {
 	//	// TODO 处理具体的业务逻辑
 	//} else {
@@ -221,7 +237,8 @@ func (c *Cluster) Emit(msg *RequestPkt, rejected *bool) error {
 	return nil
 }
 
-// Recv receives messages from the master node addressed to a specific local memory.
+// Recv 用于接收来自远端节点的内部广播，并调用本地Router.Register方法.
+// 看作是内部节点对其他节点的广播，不对客户端开放
 // Called by remote peer
 func (c *Cluster) Recv(msg *RespPkt, unused *bool) error {
 	log.Println("cluster: response from Master for session", msg.FromSID)
@@ -251,28 +268,6 @@ func (c *Cluster) Vote(req *VoteRequest, resp *VoteResponse) error {
 	return nil
 }
 
-// Recalculate the ring hash using provided list of peers or only peers in a non-failed state.
-// Returns the list of peers used for ring hash.
-//func (c *Cluster) rehash(nodes []string) []string {
-//	ring := rh.New(clusterHashReplicas, nil)
-//
-//	var ringKeys []string
-//
-//	if nodes == nil {
-//		for _, node := range c.peers {
-//			ringKeys = append(ringKeys, node.name)
-//		}
-//		ringKeys = append(ringKeys, c.thisName)
-//	} else {
-//		ringKeys = append(ringKeys, nodes...)
-//	}
-//	ring.Add(ringKeys...)
-//
-//	//c.ring = ring
-//
-//	return ringKeys
-//}
-
 // run
 // 1. 心跳检测
 // 作为主节点，向从节点发送ping
@@ -280,13 +275,11 @@ func (c *Cluster) Vote(req *VoteRequest, resp *VoteResponse) error {
 // 2. 作为从节点，接收来自主节点的ping消息
 // 3. 接收来自投票选举的消息
 func (c *Cluster) run() {
+	log.Debug("cluster: starting heartbeat and leader election")
 	// 集群中每个节点的心跳频率是不一样的，来确保大家不会在同一时间开启选举
 	hbTicker := time.NewTicker(c.fo.heartBeat)
 
 	missed := 0
-	// Don't rehash immediately on the first ping. If this node just came onlyne, leader will
-	// account it on the next ping. Otherwise it will be rehashing twice.
-	//rehashSkipped := false
 
 	for {
 		select {
@@ -296,6 +289,11 @@ func (c *Cluster) run() {
 				c.sendPings()
 			} else {
 				missed++
+
+				log.WithField("votetimeout", c.fo.voteTimeout).
+					WithField("missed", missed).
+					Debug("check missed...")
+
 				if missed >= c.fo.voteTimeout {
 					// Elect the leader
 					missed = 0
@@ -304,11 +302,10 @@ func (c *Cluster) run() {
 			}
 		case ping := <-c.fo.leaderPing:
 			// Ping from a leader.
-
 			if ping.Term < c.fo.term {
 				// This is a ping from a stale leader. Ignore.
 				// 这个ping来自老的主节点，忽略。
-				log.Println("cluster: ping from a stale leader", ping.Term, c.fo.term, ping.Leader, c.fo.leader)
+				log.Info("cluster: ping from a stale leader", ping.Term, c.fo.term, ping.Leader, c.fo.leader)
 				continue
 			}
 
@@ -316,42 +313,35 @@ func (c *Cluster) run() {
 				// 切换本地的主节点信息
 				c.fo.term = ping.Term
 				c.fo.leader = ping.Leader
-				log.Printf("cluster: leader '%s' elected", c.fo.leader)
+				log.Infof("cluster: leader '%s' elected", c.fo.leader)
 			} else if ping.Leader != c.fo.leader {
 				if c.fo.leader != "" {
 					// Wrong leader. It's a bug, should never happen!
-					log.Printf("cluster: wrong leader '%s' while expecting '%s'; term %d",
+					log.Infof("cluster: wrong leader '%s' while expecting '%s'; term %d",
 						ping.Leader, c.fo.leader, ping.Term)
 				} else {
-					log.Printf("cluster: leader set to '%s'", ping.Leader)
+					log.Infof("cluster: leader set to '%s'", ping.Leader)
 				}
 				c.fo.leader = ping.Leader
 			}
 
 			missed = 0
-			//if ping.Signature != c.ring.Signature() {
-			//	if rehashSkipped {
-			//		log.Println("cluster: rehashing at a request of",
-			//			ping.Leader, ping.Nodes, ping.Signature, c.ring.Signature())
-			//		c.rehash(ping.Nodes)
-			//		rehashSkipped = false
-			//
-			//	} else {
-			//		rehashSkipped = true
-			//	}
-			//}
 
 		case vreq := <-c.fo.electionVote:
+			log.WithField("recv term", vreq.req.Term).
+				WithField("remote name", vreq.req.Node).
+				WithField("this name", c.thisName).Debug("cluster: recv election vote...")
+
 			if c.fo.term < vreq.req.Term {
 				// This is a new election. This node has not voted yet. Vote for the requestor and
 				// clear the current leader.
-				log.Printf("Voting YES for %s, my term %d, vote term %d", vreq.req.Node, c.fo.term, vreq.req.Term)
+				log.Infof("Voting YES for %s, my term %d, vote term %d", vreq.req.Node, c.fo.term, vreq.req.Term)
 				c.fo.term = vreq.req.Term
 				c.fo.leader = ""
 				vreq.resp <- VoteResponse{Result: true, Term: c.fo.term}
 			} else {
 				// This node has voted already or stale election, reject.
-				log.Printf("Voting NO for %s, my term %d, vote term %d", vreq.req.Node, c.fo.term, vreq.req.Term)
+				log.Infof("Voting NO for %s, my term %d, vote term %d", vreq.req.Node, c.fo.term, vreq.req.Term)
 				vreq.resp <- VoteResponse{Result: false, Term: c.fo.term}
 			}
 		case <-c.fo.done:

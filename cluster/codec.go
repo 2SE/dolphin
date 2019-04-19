@@ -17,8 +17,8 @@ var (
 func timeoutCodec(f func(interface{}) error, e interface{}, msg string) error {
 	echan := make(chan error, 1)
 	timeout := defaultTimeout
-	if peerConnCnf != nil && peerConnCnf.WaitAfter.Get() > 0 {
-		timeout = peerConnCnf.WaitAfter.Get()
+	if peerConnCnf != nil && peerConnCnf.ReqWaitAfter.Get() > 0 {
+		timeout = peerConnCnf.ReqWaitAfter.Get()
 	}
 
 	go func() { echan <- f(e) }()

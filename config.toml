@@ -4,6 +4,7 @@ listen = "127.0.0.1:8080"
 read_buf_size = 1024
 write_buf_size = 1204
 expvar = "/debug/vars"
+grpc_listen = "127.0.0.1:41050"
 
 [websocket.tls]
 enabled = false
@@ -36,10 +37,9 @@ base_delay = "1s"
 factor = 1.6
 jitter = 0.2
 # 是否启用超时机制的请求
-disable_timeout = true
+disable_request_timeout = false
 # 超时时长
-wait_after = "1m"
-
+request_wait_after = "1m"
 
 [[cluster.nodes]]
 name = "node1"
@@ -65,10 +65,7 @@ vote_after = 8
 # 在n个心跳周期之后，节点仍然没有正常响应，将视作该节点不可用
 node_fail_after = 16
 ##################################################################################################
-[event_bus]
-listen = "127.0.0.1:41050"
-
-[event_bus.kafka]
+[kafka]
 brokers = ["127.0.0.1:9092"]
 waitWindow = "2s"
 consumeGroup = "dolphin-grp"

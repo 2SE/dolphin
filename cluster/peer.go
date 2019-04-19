@@ -52,6 +52,10 @@ func (n *peer) reconnect() {
 	// 重连的间隔时间随着重试次数的增加而延长。最长延迟根据配置设定。
 	nextWait := backoff.New(peerConnCnf)
 	for {
+		log.WithField("dialTimeout", dialTimeout).
+			WithField("address:", n.address).
+			WithField("name", n.name).
+			Debug("cluster: dial to remote peer..")
 		conn, err = net.DialTimeout(tcpNetwork, n.address, dialTimeout)
 		// Attempt to reconnect right away
 		if err == nil {
@@ -59,11 +63,12 @@ func (n *peer) reconnect() {
 			if reconnTimer != nil {
 				reconnTimer.Stop()
 			}
+
 			n.lock.Lock()
 			n.connected = true
 			n.reconnecting = false
 			n.lock.Unlock()
-			log.Printf("cluster: connection to '%s' established", n.name)
+			log.Infof("cluster: connection to '%s' established", n.name)
 			return
 		} else if count == 0 {
 			reconnTimer = time.NewTimer(defaultClusterReconnect)
@@ -72,13 +77,16 @@ func (n *peer) reconnect() {
 		}
 
 		count++
+		if count > 10 {
+			log.Errorf("cluster: reconnect to remote perr failed more than 10. %v", err)
+		}
 
 		select {
 		case <-reconnTimer.C:
 			// Wait for timer to try to reconnect again. Do nothing if the timer is inactive.
 		case <-n.done:
 			// Shutting down
-			log.Printf("cluster: node '%s' shutdown started", n.name)
+			log.Infof("cluster: node '%s' shutdown started", n.name)
 			reconnTimer.Stop()
 			if n.endpoint != nil {
 				n.endpoint.Close()
@@ -87,14 +95,14 @@ func (n *peer) reconnect() {
 			n.connected = false
 			n.reconnecting = false
 			n.lock.Unlock()
-			log.Printf("cluster: node '%s' shut down completed", n.name)
+			log.Infof("cluster: node '%s' shut down completed", n.name)
 			return
 		}
 	}
 }
 
 func (n *peer) newClient(conn net.Conn) {
-	if peerConnCnf != nil && peerConnCnf.DisableTimeout {
+	if peerConnCnf != nil && peerConnCnf.DisableReqTimeout {
 		n.endpoint = rpc.NewClient(conn)
 		return
 	}
@@ -114,7 +122,7 @@ func (n *peer) call(serviceMethod string, req, resp interface{}) error {
 
 	// 如果请求远端数据失败，将重连远端的连接，本次请求将失败返回
 	if err := n.endpoint.Call(serviceMethod, req, resp); err != nil {
-		log.Printf("cluster: call failed to '%s' [%s]", n.name, err)
+		log.Infof("cluster: call failed to '%s' [%s]", n.name, err)
 
 		n.lock.Lock()
 		if n.connected {
