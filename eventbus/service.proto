@@ -16,6 +16,12 @@ message Request {
     google.protobuf.Any body = 2;
 }
 
+// ClientComMessage
+message ClientComMessage {
+    string id = 1;
+    int64 seq = 2;
+}
+
 message GatewayComMessage {
     string id = 1;
     int64 seq = 2;
@@ -50,5 +56,5 @@ service Bus {
     rpc register (AppInfo) returns (RegReply);
     rpc pipe (stream AppComMessage) returns (stream GatewayComMessage);
     //
-    rpc route (stream AppComMessage) returns (stream AppComMessage);
+    rpc route (AppComMessage) returns (AppComMessage);
 }
