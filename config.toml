@@ -4,7 +4,6 @@ listen = "127.0.0.1:8080"
 read_buf_size = 1024
 write_buf_size = 1204
 expvar = "/debug/vars"
-grpc_listen = "127.0.0.1:41050"
 
 [websocket.tls]
 enabled = false
@@ -24,22 +23,10 @@ email = "noreply@example.com"
 
 # Domains served. Replace with your own domain name.
 domains = ["whatever.example.com"]
-##################################################################################################
+
 [cluster]
 # 当前自身节点的名称
-self = ""
-[cluster.connection]
-# net/rpc 客户端连接超时时间
-dial_timeout = "5s"
-# 以下四个参数设置 回退算法的参数值
-max_delay = "1m"
-base_delay = "1s"
-factor = 1.6
-jitter = 0.2
-# 是否启用超时机制的请求
-disable_request_timeout = false
-# 超时时长
-request_wait_after = "1m"
+self = "node1"
 
 [[cluster.nodes]]
 name = "node1"
@@ -64,15 +51,18 @@ heartbeat = "100ms"
 vote_after = 8
 # 在n个心跳周期之后，节点仍然没有正常响应，将视作该节点不可用
 node_fail_after = 16
-##################################################################################################
-[kafka]
+
+[event_bus]
+listen = "127.0.0.1:41050"
+
+[event_bus.kafka]
 brokers = ["127.0.0.1:9092"]
 waitWindow = "2s"
 consumeGroup = "dolphin-grp"
 minBytes = 1000
 maxBytes = 1000000
 startOffset = 0
-##################################################################################################
+
 [[plugins]]
 enabled = false
 name = "auth"

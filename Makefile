@@ -11,10 +11,6 @@ all:build
 build:generate
 	go build -o ${EXECPATH}/${APPNAME} -ldflags $(LDFLAGS) ${EXECPATH}/*.go
 
-.PHONY:cluster
-cluster:
-	go build -o ./cmd/cluster/gateway ./cmd/cluster/main.go
-
 .PHONY:generate
 generate:
 	go generate ${EXECPATH}

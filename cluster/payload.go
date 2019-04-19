@@ -1,23 +1,31 @@
 package cluster
 
-import "github.com/golang/protobuf/proto"
-
 // maybe protobuf 这里需要定义交互需要的协议
 type RequestPkt struct {
 	// 发送这条请求的节点名称
 	Node string
+	// 一致性哈希算法签名
 	// Ring hash signature of the node sending this request
 	// Signature must match the signature of the receiver, otherwise the
 	// Cluster is desynchronized.
 	Signature string
-	Pkt       proto.Message
+
+	Pkt interface{}
+
+	// 超级用户可以发送消息代表其他用户
+	OnBehalfOf string
+
+	// Expanded (routable) topic name
+	RcptTo string
+	// Originating session
+	//Sess *ClusterSess
+	// True if the original session has disconnected
+	SessGone bool
 }
 
 // maybe protobuf
 type RespPkt struct {
-	Code int
-	Node string // response from which peer
-	Pkt  proto.Message
+	FromSID string
 }
 
 // --- 以下是内部请求消息体 ---

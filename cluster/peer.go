@@ -1,18 +1,13 @@
 package cluster
 
 import (
-	"bufio"
-	"encoding/gob"
 	"errors"
-	"github.com/2se/dolphin/common/backoff"
 	log "github.com/sirupsen/logrus"
-	"net"
 	"net/rpc"
 	"sync"
 	"time"
 )
 
-// peer 对于集群模式下与自身对等的dolphin节点，视作peer
 type peer struct {
 	lock         sync.RWMutex
 	endpoint     *rpc.Client
@@ -25,7 +20,7 @@ type peer struct {
 }
 
 func (n *peer) reconnect() {
-	var reconnTimer *time.Timer
+	var reconnTicker *time.Ticker
 
 	// Avoid parallel reconnection threads
 	n.lock.Lock()
@@ -36,58 +31,33 @@ func (n *peer) reconnect() {
 	n.reconnecting = true
 	n.lock.Unlock()
 
-	var (
-		count       int
-		err         error
-		conn        net.Conn
-		dialTimeout time.Duration
-	)
-
-	if peerConnCnf != nil {
-		dialTimeout = peerConnCnf.DialTimeout.Get()
-	} else {
-		dialTimeout = defaultDialTimeout
-	}
-
-	// 重连的间隔时间随着重试次数的增加而延长。最长延迟根据配置设定。
-	nextWait := backoff.New(peerConnCnf)
+	var count = 0
+	var err error
 	for {
-		log.WithField("dialTimeout", dialTimeout).
-			WithField("address:", n.address).
-			WithField("name", n.name).
-			Debug("cluster: dial to remote peer..")
-		conn, err = net.DialTimeout(tcpNetwork, n.address, dialTimeout)
 		// Attempt to reconnect right away
-		if err == nil {
-			n.newClient(conn)
-			if reconnTimer != nil {
-				reconnTimer.Stop()
+		if n.endpoint, err = rpc.Dial("tcp", n.address); err == nil {
+			if reconnTicker != nil {
+				reconnTicker.Stop()
 			}
-
 			n.lock.Lock()
 			n.connected = true
 			n.reconnecting = false
 			n.lock.Unlock()
-			log.Infof("cluster: connection to '%s' established", n.name)
+			log.Printf("cluster: connection to '%s' established", n.name)
 			return
 		} else if count == 0 {
-			reconnTimer = time.NewTimer(defaultClusterReconnect)
-		} else {
-			reconnTimer.Reset(nextWait.Duration(count))
+			reconnTicker = time.NewTicker(defaultClusterReconnect)
 		}
 
 		count++
-		if count > 10 {
-			log.Errorf("cluster: reconnect to remote perr failed more than 10. %v", err)
-		}
 
 		select {
-		case <-reconnTimer.C:
+		case <-reconnTicker.C:
 			// Wait for timer to try to reconnect again. Do nothing if the timer is inactive.
 		case <-n.done:
 			// Shutting down
-			log.Infof("cluster: node '%s' shutdown started", n.name)
-			reconnTimer.Stop()
+			log.Printf("cluster: node '%s' shutdown started", n.name)
+			reconnTicker.Stop()
 			if n.endpoint != nil {
 				n.endpoint.Close()
 			}
@@ -95,21 +65,10 @@ func (n *peer) reconnect() {
 			n.connected = false
 			n.reconnecting = false
 			n.lock.Unlock()
-			log.Infof("cluster: node '%s' shut down completed", n.name)
+			log.Printf("cluster: node '%s' shut down completed", n.name)
 			return
 		}
 	}
-}
-
-func (n *peer) newClient(conn net.Conn) {
-	if peerConnCnf != nil && peerConnCnf.DisableReqTimeout {
-		n.endpoint = rpc.NewClient(conn)
-		return
-	}
-
-	encBuf := bufio.NewWriter(conn)
-	codec := &gobClientCodec{conn, gob.NewDecoder(conn), gob.NewEncoder(encBuf), encBuf}
-	n.endpoint = rpc.NewClientWithCodec(codec)
 }
 
 func (n *peer) call(serviceMethod string, req, resp interface{}) error {
@@ -122,7 +81,7 @@ func (n *peer) call(serviceMethod string, req, resp interface{}) error {
 
 	// 如果请求远端数据失败，将重连远端的连接，本次请求将失败返回
 	if err := n.endpoint.Call(serviceMethod, req, resp); err != nil {
-		log.Infof("cluster: call failed to '%s' [%s]", n.name, err)
+		log.Printf("cluster: call failed to '%s' [%s]", n.name, err)
 
 		n.lock.Lock()
 		if n.connected {

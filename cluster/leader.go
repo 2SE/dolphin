@@ -32,16 +32,14 @@ type clusterFailover struct {
 	done chan bool
 }
 
-func (c *Cluster) failoverInit(config *config.ClusterFailoverConfig) {
-	log.Debug("cluster: initing failover")
+func (c *Cluster) failoverInit(config *config.ClusterFailoverConfig) bool {
 	if config == nil || !config.Enabled {
-		log.Debug("cluster: not enable failover")
-		return
+		return false
 	}
 
 	if len(c.peers) < 2 {
-		log.Warnf("cluster: failover disabled; need at least 3 peers, got %d", len(c.peers)+1)
-		return
+		log.Printf("cluster: failover disabled; need at least 3 peers, got %d", len(c.peers)+1)
+		return false
 	}
 
 	// Generate ring hash on the assumption that all peers are alive and well.
@@ -51,35 +49,25 @@ func (c *Cluster) failoverInit(config *config.ClusterFailoverConfig) {
 		activeNodes = append(activeNodes, node.name)
 	}
 	activeNodes = append(activeNodes, c.thisName)
-
-	log.WithField("config_heartbeat", config.Heartbeat.Get()).Debug("heartbeat value from config")
+	c.rehash(activeNodes)
 
 	// Random heartbeat ticker: 0.75 * config.HeartBeat + random(0, 0.5 * config.HeartBeat)
 	rand.Seed(time.Now().UnixNano())
-	hb := config.Heartbeat.Get()
+	hb := config.Heartbeat.Duration * time.Millisecond
 	hb = (hb >> 1) + (hb >> 2) + time.Duration(rand.Intn(int(hb>>1)))
-
-	voteAfter := config.VoteAfter
-	failAfter := config.NodeFailAfter
-
-	if voteAfter <= 0 {
-		voteAfter = defaultVoteAfter
-	}
-
-	if failAfter <= 0 {
-		failAfter = defaultFailAfter
-	}
 
 	c.fo = &clusterFailover{
 		activeNodes:        activeNodes,
 		heartBeat:          hb,
-		voteTimeout:        voteAfter,
-		nodeFailCountLimit: failAfter,
-		leaderPing:         make(chan *PingRequest, voteAfter),
+		voteTimeout:        config.VoteAfter,
+		nodeFailCountLimit: config.NodeFailAfter,
+		leaderPing:         make(chan *PingRequest, config.VoteAfter),
 		electionVote:       make(chan *voteReqResp, len(c.peers)),
 		done:               make(chan bool, 1)}
 
-	log.WithField("heartBeat", hb).Info("cluster: failover mode enabled.")
+	log.Println("cluster: failover mode enabled")
+
+	return true
 }
 
 func (c *Cluster) sendPings() {
@@ -88,9 +76,10 @@ func (c *Cluster) sendPings() {
 	for _, node := range c.peers {
 		unused := false
 		err := node.call("Cluster.Ping", &PingRequest{
-			Leader: c.thisName,
-			Term:   c.fo.term,
-			Nodes:  c.fo.activeNodes}, &unused)
+			Leader:    c.thisName,
+			Term:      c.fo.term,
+			Signature: c.ring.Signature(),
+			Nodes:     c.fo.activeNodes}, &unused)
 
 		if err != nil {
 			node.failCount++
@@ -115,8 +104,11 @@ func (c *Cluster) sendPings() {
 			}
 		}
 		activeNodes = append(activeNodes, c.thisName)
+
 		c.fo.activeNodes = activeNodes
-		log.Info("cluster: initiating failover rehash for peers. active nodes: ", activeNodes)
+		c.rehash(activeNodes)
+
+		log.Println("cluster: initiating failover rehash for peers", activeNodes)
 	}
 }
 
@@ -125,7 +117,7 @@ func (c *Cluster) electLeader() {
 	c.fo.term++
 	c.fo.leader = ""
 
-	log.Info("cluster: leading new election for term ", c.fo.term)
+	log.Println("cluster: leading new election for term", c.fo.term)
 
 	nodeCount := len(c.peers)
 	// Number of votes needed to elect the leader
@@ -143,11 +135,6 @@ func (c *Cluster) electLeader() {
 	// Number of votes received (1 vote for self)
 	voteCount := 1
 	timeout := time.NewTimer(c.fo.heartBeat>>1 + c.fo.heartBeat)
-	log.WithField("timeout", c.fo.heartBeat>>1+c.fo.heartBeat).
-		WithField("expectVotes", expectVotes).
-		WithField("failover term", c.fo.term).
-		Debug("cluster: start another leader election")
-
 	// Wait for one of the following
 	// 1. More than half of the peers voting in favor
 	// 2. All peers responded.
@@ -176,6 +163,6 @@ func (c *Cluster) electLeader() {
 	if voteCount >= expectVotes {
 		// Current node elected as the leader
 		c.fo.leader = c.thisName
-		log.WithField("fo.term", c.fo.term).Info("Elected myself as a new leader")
+		log.Println("Elected myself as a new leader")
 	}
 }

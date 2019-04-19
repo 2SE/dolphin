@@ -6,66 +6,59 @@ import (
 )
 
 type Config struct {
-	WsCnf      *WebsocketConfig `toml:"websocket"`
-	ClusterCnf *ClusterConfig   `toml:"cluster"`
-	KafkaCnf   *KafkaConfig     `toml:"kafka"`
-	PluginsCnf []*PluginConfig  `toml:"plugins"`
+	WsCnf       *WebsocketConfig `toml:"websocket"`
+	ClusterCnf  *ClusterConfig   `toml:"cluster"`
+	EventBusCnf *EventBusConfig  `toml:"event_bus"`
+	PluginsCnf  []*PluginConfig  `toml:"plugins"`
 }
 
 type ClusterConfig struct {
-	Self       string                   `toml:"self"`
-	Connection *ClusterConnectionConfig `toml:"connection"`
-	Nodes      []*ClusterNodeConfig     `toml:"nodes"`
-	Failover   *ClusterFailoverConfig   `toml:"failover"`
-}
-
-type ClusterConnectionConfig struct {
-	DialTimeout       duration `toml:"dial_timeout"`
-	MaxDelay          duration `toml:"max_delay"`
-	BaseDelay         duration `toml:"base_delay"`
-	Factor            float64  `toml:"factor"`
-	Jitter            float64  `toml:"jitter"`
-	DisableReqTimeout bool     `toml:"disable_request_timeout"`
-	ReqWaitAfter      duration `toml:"request_wait_after"`
+	Self     string
+	Nodes    []*ClusterNodeConfig
+	Failover *ClusterFailoverConfig
 }
 
 type ClusterNodeConfig struct {
-	Name    string `toml:"name"`
-	Address string `toml:"address"`
+	Name    string
+	Address string
 }
 
 type ClusterFailoverConfig struct {
-	Enabled       bool     `toml:"enabled"`
-	Heartbeat     duration `toml:"heartbeat"`
-	VoteAfter     int      `toml:"vote_after"`
-	NodeFailAfter int      `toml:"node_fail_after"`
+	Enabled       bool
+	Heartbeat     duration
+	VoteAfter     int
+	NodeFailAfter int
+}
+
+type EventBusConfig struct {
+	Listen   string
+	KafkaCnf *KafkaConfig `toml:"kafka"`
 }
 
 type WebsocketConfig struct {
-	Listen       string       `toml:"listen"`
-	ReadBufSize  int          `toml:"read_buf_size"`
-	WriteBufSize int          `toml:"write_buf_size"`
-	GrpcListen   string       `toml:"grpc_listen"`
-	Expvar       string       `toml:"expvar"`
-	Tls          *WsTlsConfig `toml:"tls"`
+	Listen       string
+	ReadBufSize  int
+	WriteBufSize int
+	Expvar       string
+	Tls          *WsTlsConfig
 }
 
 type WsTlsConfig struct {
-	Enabled      bool              `toml:"enabled"`
-	HTTPRedirect string            `toml:"http_redirect"`
-	CertFile     string            `toml:"cert_file"`
-	KeyFile      string            `toml:"key_file"`
-	Autocert     *WsAutoCertConfig `toml:"autocert"`
+	Enabled      bool
+	HTTPRedirect string `toml:"http_redirect"`
+	CertFile     string `toml:"cert_file"`
+	KeyFile      string `toml:"key_file"`
+	Autocert     *WsAutoCertConfig
 }
 
 type WsAutoCertConfig struct {
-	CertCache string   `toml:"cert_cache"`
-	Email     string   `toml:"email"`
-	Domains   []string `toml:"domains"`
+	CertCache string `toml:"cert_cache"`
+	Email     string
+	Domains   []string
 }
 
 type KafkaConfig struct {
-	Brokers      []string `toml:"brokers"`
+	Brokers      []string
 	WaitWindow   duration `toml:"waitWindow"`
 	ConsumeGroup string   `toml:"consumeGroup"`
 	MinBytes     int      `toml:"minBytes"`
@@ -74,15 +67,15 @@ type KafkaConfig struct {
 }
 
 type PluginConfig struct {
-	Enabled    bool   `toml:"enabled"`
-	Name       string `toml:"name"`
+	Enabled    bool
+	Name       string
 	ServerAddr string `toml:"server_addr"`
 }
 
 func (cnf *Config) String() string {
 	if cnf.ClusterCnf != nil {
-		return fmt.Sprintf("\n%s\n%s\n%s\n\n[plugin]: %s\n",
-			cnf.WsCnf, cnf.ClusterCnf, cnf.KafkaCnf, cnf.PluginsCnf)
+		return fmt.Sprintf("\n%s\n%s\n%s\n%s\n",
+			cnf.WsCnf, cnf.ClusterCnf.String(), cnf.EventBusCnf.String(), cnf.PluginsCnf)
 	} else {
 		return "-"
 	}
@@ -96,8 +89,8 @@ func (cnf *Config) GetClusterConfig() *ClusterConfig {
 	return cnf.ClusterCnf
 }
 
-func (cnf *Config) GetKafkaConfig() *KafkaConfig {
-	return cnf.KafkaCnf
+func (cnf *Config) GetEventBusConfig() *EventBusConfig {
+	return cnf.EventBusCnf
 }
 
 func (cnf *Config) GetPluginConfigs() []*PluginConfig {
@@ -105,26 +98,26 @@ func (cnf *Config) GetPluginConfigs() []*PluginConfig {
 }
 
 func (wscnf *WebsocketConfig) String() string {
-	return fmt.Sprintf("[websocket]\nlisten: %s | read buffer size: %d | write buffer size: %d | expvar: %s\n%s",
+	return fmt.Sprintf("[websocket] listen: %s, (read buf size): %d, (write buf size): %d, expvar: %s, tls: %s",
 		wscnf.Listen, wscnf.ReadBufSize, wscnf.WriteBufSize, wscnf.Expvar, wscnf.Tls)
 }
 
 func (tcnf *WsTlsConfig) String() string {
-	return fmt.Sprintf("\n[websocket.tls]\nenabled: %v | redirect http: %s\ncert file: %s\nkey file: %s\n%s",
+	return fmt.Sprintf("\n [WS TLS](enabled): %v, (redirect http): %s, (cert file): %s, (key file): %s, \n[autocert]: %s",
 		tcnf.Enabled, tcnf.HTTPRedirect, tcnf.CertFile, tcnf.KeyFile, tcnf.Autocert)
 }
 
 func (acc *WsAutoCertConfig) String() string {
-	return fmt.Sprintf("\n[websocket.tls.autocert]\ncache: %s\ndomains: %v\nemail: %s", acc.CertCache, acc.Domains, acc.Email)
+	return fmt.Sprintf("  cache: %s, domains: %v, email: %s", acc.CertCache, acc.Domains, acc.Email)
 }
 
 func (ccnf *ClusterConfig) String() string {
-	return fmt.Sprintf("\n[cluster]\nself name: \"%s\"\n%s\n[cluster.nodes]: %s\n%s",
-		ccnf.Self, ccnf.Connection, ccnf.Nodes, ccnf.Failover)
+	return fmt.Sprintf("\nCluster Config:\n Self(name): %s, \n Nodes(ClusterNodeConfig): %s\n Failover: %s",
+		ccnf.Self, ccnf.Nodes, ccnf.Failover)
 }
 
 func (cfc *ClusterFailoverConfig) String() string {
-	return fmt.Sprintf("\n[cluster.failover]\nfailover enabled: %v | heartbeat: %s | vote_after: %d | node_fail_after: %d",
+	return fmt.Sprintf("\n  failover enabled: %v, \n  heartbeat: %s, \n  vote_after: %d, \n  node_fail_after: %d",
 		cfc.Enabled, cfc.Heartbeat, cfc.VoteAfter, cfc.NodeFailAfter)
 }
 
@@ -132,28 +125,22 @@ func (cnc *ClusterNodeConfig) String() string {
 	return fmt.Sprintf("\n{name: \"%s\", address: \"%s\"}", cnc.Name, cnc.Address)
 }
 
-func (ccc *ClusterConnectionConfig) String() string {
-	return fmt.Sprintf("[cluster.connection]\ndial timeout: %s | (backoff)max delay: %s"+
-		" | base delay: %s | factor: %f | jitter: %f\n(net/rpc dial)disable_timeout: %v | wait_after: %s",
-		ccc.DialTimeout, ccc.MaxDelay, ccc.BaseDelay, ccc.Factor, ccc.Jitter, ccc.DisableReqTimeout, ccc.ReqWaitAfter)
+func (ebc *EventBusConfig) String() string {
+	return fmt.Sprintf("[event bus] address: %s\n [kafka config]: %s\n", ebc.Listen, ebc.KafkaCnf)
 }
 
 func (kcnf *KafkaConfig) String() string {
-	return fmt.Sprintf("\n[kafka]\nbrokers: %v\nconsume group: %s\nmin bytes: %d\nmax bytes: %d\nstart offset: %d\nwait window: %s",
+	return fmt.Sprintf("brokers: %v, consume group: %s, min bytes: %d, max bytes: %d, start offset: %d, wait window: %s",
 		kcnf.Brokers, kcnf.ConsumeGroup, kcnf.MinBytes,
 		kcnf.MaxBytes, kcnf.StartOffset, kcnf.WaitWindow)
 }
 
 func (pcnf *PluginConfig) String() string {
-	return fmt.Sprintf("\n[%s]\nenabled: %v\naddress: %s", pcnf.Name, pcnf.Enabled, pcnf.ServerAddr)
+	return fmt.Sprintf("\n[plugin] name: %s, enabled: %v, address: %s", pcnf.Name, pcnf.Enabled, pcnf.ServerAddr)
 }
 
 type duration struct {
 	time.Duration
-}
-
-func (d *duration) Get() time.Duration {
-	return d.Duration
 }
 
 func (d *duration) UnmarshalText(text []byte) (err error) {
