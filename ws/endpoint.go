@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/tls"
 	"github.com/2se/dolphin/config"
+	"github.com/2se/dolphin/eventbus"
 	dhttp "github.com/2se/dolphin/http"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
+	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme/autocert"
 	"net/http"
@@ -23,6 +25,9 @@ type WebsocketEndpoint struct {
 }
 
 func Init(cnf *config.WebsocketConfig) {
+	W = NewWsServer()
+	go W.Start()
+	go W.HandleHeartBeat()
 	// Set up HTTP server. Must use non-default mux because of expvar.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", serveWebsocket)
@@ -116,19 +121,29 @@ func serveWebsocket(w http.ResponseWriter, req *http.Request) {
 		// TODO http response
 	}
 
-	// TODO
 	go func() {
 		defer conn.Close()
 
 		for {
-			msg, op, err := wsutil.ReadClientData(conn)
+			msg, _, err := wsutil.ReadClientData(conn)
 			if err != nil {
 				// handle error
 			}
-			err = wsutil.WriteServerMessage(conn, op, msg)
+			metaData := &eventbus.ClientComMeta{}
+			err = proto.Unmarshal(msg, metaData)
 			if err != nil {
-				// handle error
+				log.Errorf("Ws: unmarshal metaData error: %v", err)
+				// todo http response
 			}
+			var client *Client
+			if _, ok := W.Clients[metaData.Uuid]; !ok {
+				client = &Client{ID: metaData.Uuid, conn: &conn, wsServer: W}
+				W.AddCli <- client
+			} else {
+				client = W.Clients[metaData.Key]
+			}
+
+			W.handleClientData(client, metaData)
 		}
 	}()
 }
