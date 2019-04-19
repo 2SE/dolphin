@@ -16,14 +16,14 @@ type TestTopic struct {
 	Action   string
 }
 
-func (s *TestTopic) GetTopic() []byte {
+func (s *TestTopic) GetTopic() string {
 	buff := bytes.NewBuffer(nil)
 	buff.WriteString(s.Version)
 	buff.WriteString("_")
 	buff.WriteString(s.Action)
 	buff.WriteString("_")
 	buff.WriteString(s.Resource)
-	return buff.Bytes()
+	return buff.String()
 }
 
 var (

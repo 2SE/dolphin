@@ -34,7 +34,7 @@ func TestOn(t *testing.T) {
 	}()
 	go func() {
 		for c := range eve {
-			fmt.Println(c)
+			fmt.Println("print ", c)
 			//wg.Done()
 		}
 	}()

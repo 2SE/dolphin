@@ -8,9 +8,11 @@ require (
 	github.com/gobwas/pool v0.2.0 // indirect
 	github.com/gobwas/ws v1.0.0
 	github.com/golang/protobuf v1.3.2-0.20190409050943-e91709a02e0e
+	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/magiconair/properties v1.8.0
-	github.com/segmentio/kafka-go v0.2.2 // indirect
+	github.com/pierrec/lz4 v2.0.7+incompatible // indirect
+	github.com/segmentio/kafka-go v0.2.2
 	github.com/sirupsen/logrus v1.4.1
 	golang.org/x/crypto v0.0.0-20190411191339-88737f569e3a
 	golang.org/x/sys v0.0.0-20190411185658-b44545bcd369 // indirect

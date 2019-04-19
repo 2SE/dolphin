@@ -4,20 +4,24 @@ import (
 	"github.com/google/uuid"
 )
 
+type KV struct {
+	Key []byte
+	Val []byte
+}
+
 //Type Event type. you can define custom event type
 //Please don`t overide the following interal event type:
 // subscribe Type = "subscribe"
 // unSubscribe Type = "unSubscribe"
 // unSubscribeAll Type = "unSubscribeAll"
-type Type byte
 
 type Topicer interface {
-	GetTopic() []byte
+	GetTopic() string
 }
 
 //Event ...
 type Event interface {
-	GetTopic() Topicer
+	Topicer
 	GetMetaData() []byte
 	GetData() []byte
 }
@@ -30,8 +34,8 @@ type GenericEvent struct {
 }
 
 //GetType ...
-func (e *GenericEvent) GetTopic() Topicer {
-	return e.Topic
+func (e *GenericEvent) GetTopic() string {
+	return e.Topic.GetTopic()
 }
 
 //GetMetaData ...
@@ -64,7 +68,7 @@ type Emitter interface {
 // when unsubscribe event, the channel sending event will automate be closed
 func NewEmitter(eventBufSize int) Emitter {
 	emitter := new(eventEmitter)
-	emitter.hub = make(map[Topicer]*broadcaster)
+	emitter.hub = make(map[string]*broadcaster)
 	emitter.eventListener = make(chan Event)
 	emitter.observer = make(chan subscriber)
 	if eventBufSize <= 0 {
@@ -76,7 +80,7 @@ func NewEmitter(eventBufSize int) Emitter {
 }
 
 type eventEmitter struct {
-	hub           map[Topicer]*broadcaster
+	hub           map[string]*broadcaster
 	eventListener chan Event
 	observer      chan subscriber
 	eventBufSize  int
@@ -92,7 +96,7 @@ func (e *eventEmitter) dispatch() {
 		case suber := <-e.observer:
 			switch suber.subscribeAction {
 			case subscribe:
-				b, ok := e.hub[suber.topic]
+				b, ok := e.hub[suber.topic.GetTopic()]
 				if !ok {
 					b = new(broadcaster)
 					b.subers = make(map[string]subscriber)
@@ -101,7 +105,7 @@ func (e *eventEmitter) dispatch() {
 					b.eventBufSize = e.eventBufSize
 					b.emitter = e
 					go b.start()
-					e.hub[suber.topic] = b
+					e.hub[suber.topic.GetTopic()] = b
 				}
 				b.dealRegister(suber)
 			case unSubscribe:
@@ -179,6 +183,7 @@ func (e *eventEmitter) Emit(events ...Event) {
 }
 
 type subscribeType byte
+type Type byte
 
 const (
 	fireOnce       subscribeType = 0x01
@@ -276,7 +281,7 @@ func (b *broadcaster) checkEmpty(topicer Topicer) {
 	if len(b.subers) == 0 {
 		//clean the parent event type
 		//will error?
-		delete(b.emitter.hub, topicer)
+		delete(b.emitter.hub, topicer.GetTopic())
 	}
 }
 
