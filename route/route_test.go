@@ -2,9 +2,10 @@ package route
 
 import (
 	"fmt"
-	"github.com/magiconair/properties/assert"
 	"sort"
 	"testing"
+
+	"github.com/magiconair/properties/assert"
 )
 
 func TestPeersRoute_Remove(t *testing.T) {
@@ -31,10 +32,32 @@ func TestPeersRoute_Sort(t *testing.T) {
 }
 
 func TestResourcesPool_RegiserSubResources(t *testing.T) {
-	route := InitRoute("1")
+	route := InitRoute("node1")
 	route.Register([]MethodPath{{1, 2, 3}, {1, 2, 4}, {2, 3, 4}}, "50", "")
+	route.Register([]MethodPath{{1, 2, 3}, {1, 2, 4}, {2, 3, 4}}, "50", "node2")
 	for k, v := range route.listTopicPeers() {
 		fmt.Println("key:", k)
 		fmt.Printf("peer:%s app:%s ", (*v)[0][0], (*v)[0][1])
 	}
+}
+
+func TestResourcesPool_RouteIn(t *testing.T) {
+	/*
+		"A": "B",
+		"B": "C",
+		"C": "C",
+		"D": "A",
+		"E": "B",
+		"F": "C",*/
+	route := InitRoute("A")
+	route.Register([]MethodPath{{1, 2, 3}, {1, 2, 4}, {2, 3, 4}}, "50", "")
+	route.Register([]MethodPath{{1, 2, 3}, {1, 2, 4}, {2, 3, 4}}, "50", "B")
+	route.Register([]MethodPath{{1, 2, 3}, {1, 2, 4}, {2, 3, 4}}, "50", "C")
+	userId := "B"
+	mp := MethodPath{1, 2, 3}
+	data, err := route.RouteIn(mp, userId)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println("other peer", data)
 }

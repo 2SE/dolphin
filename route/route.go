@@ -3,6 +3,14 @@ package route
 import (
 	"errors"
 	"sync"
+
+	"fmt"
+
+	"sort"
+
+	"hash/crc32"
+
+	"github.com/2se/dolphin/ringhash"
 )
 
 // fisrt byte  : version
@@ -14,7 +22,7 @@ var r *resourcesPool
 
 type Router interface {
 	RouteIn(mp MethodPath, userId string) (interface{}, error)
-	RouteOut(mp MethodPath) (interface{}, error)
+	RouteOut(mp MethodPath, appName string) (interface{}, error)
 	//注册单个app上所有资源,peer 为 0 是默认本地
 	Register(mps []MethodPath, appName, peerName string)
 	//注销app下所有
@@ -35,6 +43,7 @@ func InitRoute(peer string) Router {
 	route := &resourcesPool{
 		curPeer:    peer,
 		topicPeers: make(map[MethodPath]*PeersRoute),
+		ring:       make(map[MethodPath]*ringhash.Ring),
 	}
 	return route
 }
@@ -42,6 +51,7 @@ func InitRoute(peer string) Router {
 type resourcesPool struct {
 	curPeer    string
 	topicPeers map[MethodPath]*PeersRoute
+	ring       map[MethodPath]*ringhash.Ring
 	m          sync.RWMutex
 }
 
@@ -56,6 +66,9 @@ func (s PeersRoute) Less(i, j int) bool {
 }
 func (s *PeersRoute) append(pr PeerRoute) {
 	*s = append(*s, pr)
+}
+func (s *PeersRoute) sort() {
+	sort.Sort(s)
 }
 func (s *PeersRoute) removeByPeer(peer string) {
 	for k, v := range *s {
@@ -85,7 +98,14 @@ func (s *PeersRoute) removeByApp(app string) {
 		}
 	}
 }
-
+func (s PeersRoute) findOne(peerName string) (PeerRoute, error) {
+	for _, v := range s {
+		if v[0] == peerName {
+			return v, nil
+		}
+	}
+	return PeerRoute{}, errors.New("peer not exists")
+}
 func (s PeerRoute) equals(pr PeerRoute) bool {
 	return s == pr
 }
@@ -96,7 +116,7 @@ func (s *resourcesPool) Register(mps []MethodPath, appName, peerName string) {
 	if peerName == "" {
 		peerName = s.curPeer
 	}
-	pr := PeerRoute{s.curPeer, appName}
+	pr := PeerRoute{peerName, appName}
 
 	for _, mp := range mps {
 		if s.topicPeers[mp] == nil {
@@ -111,6 +131,7 @@ func (s *resourcesPool) Register(mps []MethodPath, appName, peerName string) {
 		}
 		if flag {
 			s.topicPeers[mp].append(pr)
+			s.topicPeers[mp].sort()
 		}
 	}
 }
@@ -130,15 +151,35 @@ func (s *resourcesPool) UnRegisterApp(appName string) {
 	}
 }
 
-func (s *resourcesPool) RouteIn(mp MethodPath) (interface{}, error) {
-	_, ok := s.topicPeers[mp]
+//todo 现在ringhash只存peer，所以获取出来后还要边路peer app数组，需要一个友好的优化，先不管
+func (s *resourcesPool) RouteIn(mp MethodPath, userId string) (interface{}, error) {
+	psr, ok := s.topicPeers[mp]
 	if !ok {
 		return nil, errors.New("MethodPath does not exist")
 	}
-
-	return nil, nil
+	if _, ok := s.ring[mp]; !ok {
+		keys := make([]string, 0, psr.Len())
+		for _, v := range *psr {
+			keys = append(keys, v[0])
+		}
+		ring := ringhash.New(psr.Len(), crc32.ChecksumIEEE)
+		ring.Add(keys...)
+		s.ring[mp] = ring
+	}
+	peer := s.ring[mp].Get(userId)
+	fmt.Println("peer :", peer)
+	pa, err := psr.findOne(peer)
+	if err != nil {
+		return nil, err
+	}
+	if peer != s.curPeer {
+		return pa, errors.New("not this peer")
+	}
+	re, err := s.RouteOut(mp, pa[1])
+	return re, err
 }
-func (s *resourcesPool) RouteOut(mp MethodPath) (interface{}, error) {
+func (s *resourcesPool) RouteOut(mp MethodPath, appName string) (interface{}, error) {
+	fmt.Println("route out ", mp, appName)
 	return nil, nil
 }
 func (s *resourcesPool) listTopicPeers() map[MethodPath]*PeersRoute {
