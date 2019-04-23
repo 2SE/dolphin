@@ -55,7 +55,8 @@ func client(data []byte) {
 			break
 		}
 	}
-	err := wsutil.WriteClientMessage(conn, ws.OpText, data)
+
+	err := wsutil.WriteClientMessage(conn, ws.OpBinary, data)
 	if err != nil {
 		log.Error("send msg error", err)
 		return

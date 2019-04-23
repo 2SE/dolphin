@@ -17,6 +17,7 @@ var (
 	wg = new(sync.WaitGroup)
 )
 
+const HeartBeatEquation = 3000
 
 type TestTopic struct {
 	Version  string
@@ -61,9 +62,8 @@ func (w *WsServer)handleClientData(cli *Client, msg []byte) {
 		// subscribe
 		subPid, event := Emmiter.Subscribe(wsTopic)
 		log.Println("Ws: subscribe success", subPid)
-		subscribe := &Subscribe{event, subPid, metaData.Key}
+		subscribe := &Subscribe{event, subPid, metaData.Key,  cli.ID, cli.conn}
 		cli.Subscribes = append(cli.Subscribes, *subscribe)
-		w.Subscribe <- cli
 	} else {
 		// todo handle data
 		//log.Printf("Ws: got data, client is %s, data is %v", cli.ID, metaData)

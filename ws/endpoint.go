@@ -25,7 +25,7 @@ type WebsocketEndpoint struct {
 func Init(cnf *config.WebsocketConfig) {
 	W = NewWsServer()
 	go W.Start()
-	go W.HandleHeartBeat()
+	go W.HandleHeartBeat(HeartBeatEquation)
 	// Set up HTTP server. Must use non-default mux because of expvar.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", serveWebsocket)
@@ -138,15 +138,23 @@ func serveWebsocket(w http.ResponseWriter, req *http.Request) {
 	}
 
 	go func() {
-		conn := *cli.conn
-		defer conn.Close()
-
 		for {
-			msg, _, err := wsutil.ReadClientData(conn)
-			log.Println("============", string(msg))
-
+			conn := *cli.conn
+			msg, opCode, err := wsutil.ReadClientData(conn)
 			if err != nil {
-				// handle error
+				// todo handle error
+				log.Error("Ws: read client data error", err)
+			}
+
+			switch opCode {
+			case ws.OpClose:
+				conn.Close()
+				W.DelCli <- cli
+			case ws.OpPing:
+				wsutil.WriteServerMessage(conn, ws.OpPong, nil)
+				cli.Timestamp = time.Now().UnixNano() / 1e6
+			default:
+				cli.Timestamp = time.Now().UnixNano() / 1e6
 			}
 
 			log.Printf("got msg from [%s], message is : %v", p.ClientID, string(msg))
