@@ -4,11 +4,9 @@ import (
 	"context"
 	"crypto/tls"
 	"github.com/2se/dolphin/config"
-	"github.com/2se/dolphin/eventbus"
 	dhttp "github.com/2se/dolphin/http"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
-	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme/autocert"
 	"net/http"
@@ -27,7 +25,7 @@ type WebsocketEndpoint struct {
 func Init(cnf *config.WebsocketConfig) {
 	W = NewWsServer()
 	go W.Start()
-	go W.HandleHeartBeat()
+	go W.HandleHeartBeat(HeartBeatEquation)
 	// Set up HTTP server. Must use non-default mux because of expvar.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", serveWebsocket)
@@ -46,11 +44,11 @@ func Init(cnf *config.WebsocketConfig) {
 
 		server.TLSConfig = tlsConfig
 	}
-
 	Endpoint = &WebsocketEndpoint{server: server}
 }
 
 func ListenAndServe(stop <-chan bool) error {
+
 	shuttingDown := false
 
 	httpdone := make(chan bool)
@@ -115,35 +113,52 @@ Loop:
 }
 
 func serveWebsocket(w http.ResponseWriter, req *http.Request) {
-	conn, _, _, err := ws.UpgradeHTTP(req, w)
+	var p Param
+	var cli *Client
+	err := ParamBind(&p, req)
 	if err != nil {
-		log.Errorf("%v", err)
-		// TODO http response
+		log.Errorln("Ws: get client_id error", err)
+		// todo http response
+	}
+
+	if p.ClientID == "" {
+		log.Errorf("cannot find the client by nil")
+		// todo http response
+	}
+	if _, ok := W.Clients[p.ClientID]; ok {
+		cli = W.Clients[p.ClientID]
+	} else {
+		conn, _, _, err := ws.UpgradeHTTP(req, w)
+		if err != nil {
+			log.Errorf("%v", err)
+			// TODO http response
+		}
+		cli = &Client{conn: &conn, ID: p.ClientID}
+		W.AddCli <- cli
 	}
 
 	go func() {
-		defer conn.Close()
-
 		for {
-			msg, _, err := wsutil.ReadClientData(conn)
+			conn := *cli.conn
+			msg, opCode, err := wsutil.ReadClientData(conn)
 			if err != nil {
-				// handle error
-			}
-			metaData := &eventbus.ClientComMeta{}
-			err = proto.Unmarshal(msg, metaData)
-			if err != nil {
-				log.Errorf("Ws: unmarshal metaData error: %v", err)
-				// todo http response
-			}
-			var client *Client
-			if _, ok := W.Clients[metaData.Uuid]; !ok {
-				client = &Client{ID: metaData.Uuid, conn: &conn, wsServer: W}
-				W.AddCli <- client
-			} else {
-				client = W.Clients[metaData.Key]
+				// todo handle error
+				log.Error("Ws: read client data error", err)
 			}
 
-			W.handleClientData(client, metaData)
+			switch opCode {
+			case ws.OpClose:
+				conn.Close()
+				W.DelCli <- cli
+			case ws.OpPing:
+				wsutil.WriteServerMessage(conn, ws.OpPong, nil)
+				cli.Timestamp = time.Now().UnixNano() / 1e6
+			default:
+				cli.Timestamp = time.Now().UnixNano() / 1e6
+			}
+
+			log.Printf("got msg from [%s], message is : %v", p.ClientID, string(msg))
+			W.handleClientData(cli, msg)
 		}
 	}()
 }
