@@ -53,11 +53,11 @@ func TestResourcesPool_RouteIn(t *testing.T) {
 	route.Register([]MethodPath{{1, 2, 3}, {1, 2, 4}, {2, 3, 4}}, "50", "", "0.0.0.0:0000")
 	route.Register([]MethodPath{{1, 2, 3}, {1, 2, 4}, {2, 3, 4}}, "50", "B", "0.0.0.0:0000")
 	route.Register([]MethodPath{{1, 2, 3}, {1, 2, 4}, {2, 3, 4}}, "50", "C", "0.0.0.0:0000")
-	userId := "B"
-	mp := MethodPath{1, 2, 3}
-	data, err := route.RouteIn(mp, userId)
+	//userId := "B"
+	//mp := MethodPath{1, 2, 3}
+	/*data, err := route.RouteIn(mp, userId)
 	if err != nil {
 		fmt.Println(err)
-	}
-	fmt.Println("other peer", data)
+	}*/
+	//fmt.Println("other peer", data)
 }
