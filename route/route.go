@@ -4,8 +4,6 @@ import (
 	"errors"
 	"sync"
 
-	"fmt"
-
 	"sort"
 
 	"hash/crc32"
@@ -20,11 +18,23 @@ type MethodPath [3]byte
 
 var r *resourcesPool
 
+var (
+	ErrPeerNotFound       = errors.New("route: peer not found")
+	ErrMethodPathNotFound = errors.New("route: methodPath not found")
+	ErrClientExists       = errors.New("route: client exists")
+	ErrAddressNotFound    = errors.New("route: address not fount")
+)
+
 type Router interface {
-	RouteIn(mp MethodPath, userId string) (interface{}, error)
-	RouteOut(mp MethodPath, appName string) (interface{}, error)
-	//注册单个app上所有资源,peer 为 0 是默认本地
-	Register(mps []MethodPath, appName, peerName string)
+	//获取路由分流指向
+	RouteIn(mp MethodPath, userId string) (pr PeerRoute, redirect bool, err error)
+	//更具appName将request定向到指定Grpc服务并返回结果
+	RouteOut(appName string, request *ClientComRequest) (response *ServerComResponse, err error)
+	//注册单个
+	//appName 资源服务名称
+	//peer 节点名称（空字符串为本地）
+	//address  资源服务连接地址（ps:www.example.com:8080）
+	Register(mps []MethodPath, appName, peerName, address string) error
 	//注销app下所有
 	UnRegisterApp(appName string)
 	//注销peer下所有
@@ -44,13 +54,16 @@ func InitRoute(peer string) Router {
 		curPeer:    peer,
 		topicPeers: make(map[MethodPath]*PeersRoute),
 		ring:       make(map[MethodPath]*ringhash.Ring),
+		appAddr:    make(map[string]string),
 	}
 	return route
 }
 
 type resourcesPool struct {
 	curPeer    string
+	appAddr    map[string]string //key:appName val:address (only save local app)
 	topicPeers map[MethodPath]*PeersRoute
+	clients    map[string]AppServeClient //key:address val:grpcClient (only save local app)
 	ring       map[MethodPath]*ringhash.Ring
 	m          sync.RWMutex
 }
@@ -104,17 +117,22 @@ func (s PeersRoute) findOne(peerName string) (PeerRoute, error) {
 			return v, nil
 		}
 	}
-	return PeerRoute{}, errors.New("peer not exists")
+	return PeerRoute{}, ErrPeerNotFound
 }
 func (s PeerRoute) equals(pr PeerRoute) bool {
 	return s == pr
 }
 
-func (s *resourcesPool) Register(mps []MethodPath, appName, peerName string) {
+func (s *resourcesPool) Register(mps []MethodPath, appName, peerName, address string) error {
 	s.m.Lock()
 	defer s.m.Unlock()
 	if peerName == "" {
 		peerName = s.curPeer
+		err := s.TryAddClient(address)
+		if err != nil {
+			return err
+		}
+		s.appAddr[appName] = address
 	}
 	pr := PeerRoute{peerName, appName}
 
@@ -134,6 +152,7 @@ func (s *resourcesPool) Register(mps []MethodPath, appName, peerName string) {
 			s.topicPeers[mp].sort()
 		}
 	}
+	return nil
 }
 
 func (s *resourcesPool) UnRegisterPeer(peerName string) {
@@ -149,13 +168,16 @@ func (s *resourcesPool) UnRegisterApp(appName string) {
 	for _, prs := range s.topicPeers {
 		prs.removeByApp(appName)
 	}
+	if address, ok := s.appAddr[appName]; ok {
+		delete(s.appAddr, appName)
+		s.RemoveClient(address)
+	}
 }
 
-//todo 现在ringhash只存peer，所以获取出来后还要边路peer app数组，需要一个友好的优化，先不管
-func (s *resourcesPool) RouteIn(mp MethodPath, userId string) (interface{}, error) {
+func (s *resourcesPool) RouteIn(mp MethodPath, userId string) (pr PeerRoute, redirect bool, err error) {
 	psr, ok := s.topicPeers[mp]
 	if !ok {
-		return nil, errors.New("MethodPath does not exist")
+		return PeerRoute{}, false, ErrMethodPathNotFound
 	}
 	if _, ok := s.ring[mp]; !ok {
 		keys := make([]string, 0, psr.Len())
@@ -167,20 +189,22 @@ func (s *resourcesPool) RouteIn(mp MethodPath, userId string) (interface{}, erro
 		s.ring[mp] = ring
 	}
 	peer := s.ring[mp].Get(userId)
-	fmt.Println("peer :", peer)
 	pa, err := psr.findOne(peer)
 	if err != nil {
-		return nil, err
+		return PeerRoute{}, false, err
 	}
 	if peer != s.curPeer {
-		return pa, errors.New("not this peer")
+		redirect = true
 	}
-	re, err := s.RouteOut(mp, pa[1])
-	return re, err
+	return pa, redirect, err
 }
-func (s *resourcesPool) RouteOut(mp MethodPath, appName string) (interface{}, error) {
-	fmt.Println("route out ", mp, appName)
-	return nil, nil
+
+func (s *resourcesPool) RouteOut(appName string, request *ClientComRequest) (response *ServerComResponse, err error) {
+	addr, ok := s.appAddr[appName]
+	if !ok {
+		return nil, ErrAddressNotFound
+	}
+	return s.callAppAction(addr, request)
 }
 func (s *resourcesPool) listTopicPeers() map[MethodPath]*PeersRoute {
 	return s.topicPeers
