@@ -21,7 +21,7 @@ func TestRouteHttpTest(t *testing.T) {
 	appInfo := &routehttp.AppInfo{
 		AppName: "testApp",
 		Address: "127.0.0.1:10087",
-		Methods: []routehttp.MethodPath{
+		Methods: []routehttp.MP{
 			{"1", "2", "3"},
 			{"1", "2", "4"},
 			{"1", "2", "5"},
