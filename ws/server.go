@@ -5,7 +5,6 @@ import (
 	"github.com/2se/dolphin/route"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
-	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 	"net"
 	"sync"
@@ -14,32 +13,35 @@ import (
 
 // Client websocket client info
 type Client struct {
-	ID               string
-	conn             *net.Conn
-	wsServer         *WsServer
-	Subscribes       []Subscribe
-	eventUnSubscribe chan bool
-	Timestamp        int64
+	ID       string
+	conn     *net.Conn
+	wsServer *WsServer
+	//Subscribes       []Subscribe
+	//eventUnSubscribe chan bool
+	Timestamp int64
+	Message   []byte
 }
 
 type Subscribe struct {
-	eventIn  <-chan event.Event
-	SubPid   string
-	SubKey   string
-	ClientID string
-	conn     *net.Conn
+	eventIn          <-chan event.Event
+	eventUnSubscribe chan bool
+	SubPid           string
+	SubKey           string
+	cli              *Client
 }
 
 // WsServer the struct of the websocket server
 type WsServer struct {
 	Subscribs   map[*Client][]Subscribe
 	Clients     map[string]*Client
+	Conns       map[*net.Conn]string
+	Pushers     map[string]*Client
 	AddCli      chan *Client
 	DelCli      chan *Client
 	Subscribe   chan *Subscribe
 	UnSubscribe chan *Client
-	Message     chan []byte
-	m           sync.RWMutex
+	SendMsg     chan *Client
+	m           *sync.RWMutex
 }
 
 //type Message struct {
@@ -56,11 +58,14 @@ func NewWsServer() *WsServer {
 	return &WsServer{
 		Subscribs:   make(map[*Client][]Subscribe),
 		Clients:     make(map[string]*Client),
+		Conns:       make(map[*net.Conn]string),
+		Pushers:     make(map[string]*Client),
 		AddCli:      make(chan *Client),
 		DelCli:      make(chan *Client),
-		Message:     make(chan []byte),
+		SendMsg:     make(chan *Client),
 		Subscribe:   make(chan *Subscribe),
 		UnSubscribe: make(chan *Client),
+		m:           new(sync.RWMutex),
 	}
 }
 
@@ -75,8 +80,8 @@ type WS interface {
 func (w *WsServer) Start() {
 	for {
 		select {
-		case msg := <-w.Message:
-			w.SendMessage(msg)
+		case c := <-w.SendMsg:
+			w.SendMessage(c)
 		case c := <-w.AddCli:
 			w.addClient(c)
 		case c := <-w.DelCli:
@@ -90,14 +95,15 @@ func (w *WsServer) Start() {
 }
 
 // SendMessage send message to the ws client by clientId
-func (w *WsServer) SendMessage(msg []byte) {
+func (w *WsServer) SendMessage(cli *Client) {
 	var data route.ClientComMeta
-	proto.Unmarshal(msg, &data)
-	if _, ok := w.Clients[data.Key]; ok {
-		if err := wsutil.WriteServerMessage(*w.Clients[data.Key].conn, ws.OpText, msg); err != nil {
+	if _, ok := w.Conns[cli.conn]; ok {
+		if err := wsutil.WriteServerMessage(*cli.conn, ws.OpBinary, cli.Message); err != nil {
+			// todo handle error and resend
 			log.Errorf("Ws: failed to send msg to client %s", data.Key)
 		}
 	} else {
+		// todo handle error
 		log.Errorf("Ws: client not found, user_id: %s", data.Key)
 	}
 }
@@ -106,34 +112,54 @@ func (w *WsServer) SendMessage(msg []byte) {
 func (w *WsServer) delClient(c *Client) {
 	w.m.Lock()
 	defer w.m.Unlock()
-	if _, ok := w.Clients[c.ID]; ok {
-		delete(w.Clients, c.ID)
-		w.unSubscribe(c)
+
+	// cancel subscribe
+	w.UnSubscribe <- c
+
+	if c.conn != nil {
+		delete(w.Conns, c.conn)
 	}
-	log.Printf("Ws: client %s has been deleted", c.ID)
+
+	if c.ID != "" {
+		delete(w.Clients, c.ID)
+		log.Printf("Ws: client [%s] has been deleted", c.ID)
+	}
 }
 
 // addClient add a ws client to session
 func (w *WsServer) addClient(c *Client) {
+	if c.ID == "" || c.conn == nil {
+		log.Println("Ws: could not add the client cause client info error")
+		return
+	}
 	w.m.Lock()
 	defer w.m.Unlock()
+	c.Timestamp = time.Now().UnixNano() / 1e6
+	if _, ok := w.Conns[c.conn]; !ok {
+		w.Conns[c.conn] = c.ID
+	}
+
 	if _, ok := w.Clients[c.ID]; !ok {
 		w.Clients[c.ID] = c
-		log.Printf("Ws: add client %s to session successfully ", c.ID)
 	}
+	log.Printf("Ws: add client %s to session successfully ", c.ID)
 }
 
 // subscribe ws client subscribe
 func (w *WsServer) sbuscribe(s *Subscribe) {
+	w.m.Unlock()
+
+	// add client to session
+	w.AddCli <- s.cli
+
 	w.m.Lock()
 	defer w.m.Unlock()
-	cli := &Client{ID: s.ClientID, conn: s.conn, Timestamp: time.Now().UnixNano()/1e6}
-	w.AddCli <- cli
-	subscribes := w.Subscribs[cli]
+	subscribes := w.Subscribs[s.cli]
 	if subscribes == nil {
 		subscribes = []Subscribe{}
 	}
 	subscribes = append(subscribes, *s)
+	w.Pushers[s.SubKey] = s.cli
 }
 
 // unSubscribe ws client unSubscribe
@@ -141,24 +167,21 @@ func (w *WsServer) unSubscribe(c *Client) {
 	w.m.Lock()
 	defer w.m.Unlock()
 
-	if client, ok := w.Clients[c.ID]; ok {
-		if subKeys, ok := w.Subscribs[client]; ok {
-			for _, s := range subKeys {
-				Emmiter.UnSubscribe(s.SubPid)
-			}
-			delete(w.Subscribs, client)
+	if subKeys, ok := w.Subscribs[c]; ok {
+		for _, s := range subKeys {
+			Emmiter.UnSubscribe(s.SubPid)
+			s.eventUnSubscribe <- true
+			delete(w.Pushers, s.SubKey)
 		}
+		delete(w.Subscribs, c)
 	}
-
-	w.Clients[c.ID].eventUnSubscribe = make(chan bool)
-	w.Clients[c.ID].eventUnSubscribe <- true
 }
 
 // HandleHeartBeat handle websocket heart beat
 func (w *WsServer) HandleHeartBeat(equation_ms int64) {
 	clients := w.Clients
 	for _, v := range clients {
-		if time.Now().UnixNano()/1e6 - v.Timestamp > equation_ms {
+		if time.Now().UnixNano()/1e6-v.Timestamp > equation_ms {
 			w.DelCli <- v
 			w.UnSubscribe <- v
 		}
