@@ -2,7 +2,7 @@ package ws
 
 import (
 	"github.com/2se/dolphin/event"
-	"github.com/2se/dolphin/eventbus"
+	"github.com/2se/dolphin/route"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/golang/protobuf/proto"
@@ -91,7 +91,7 @@ func (w *WsServer) Start() {
 
 // SendMessage send message to the ws client by clientId
 func (w *WsServer) SendMessage(msg []byte) {
-	var data eventbus.ClientComMeta
+	var data route.ClientComMeta
 	proto.Unmarshal(msg, &data)
 	if _, ok := w.Clients[data.Key]; ok {
 		if err := wsutil.WriteServerMessage(*w.Clients[data.Key].conn, ws.OpText, msg); err != nil {

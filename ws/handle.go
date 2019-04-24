@@ -1,8 +1,8 @@
 package ws
 
 import (
+	"github.com/2se/dolphin/route"
 	"github.com/2se/dolphin/event"
-	"github.com/2se/dolphin/eventbus"
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/schema"
 	log "github.com/sirupsen/logrus"
@@ -21,7 +21,7 @@ var (
 const HeartBeatEquation = 3000
 
 type SubscribeTopicer struct {
-	eventbus.ClientComMeta
+	route.ClientComMeta
 }
 
 func (s *SubscribeTopicer) GetTopic() string {
@@ -43,7 +43,7 @@ func ParamBind(obj interface{}, r *http.Request) error {
 
 func (w *WsServer) handleClientData(cli *Client, msg []byte) {
 	// todo 确定topic
-	var metaData eventbus.ClientComMeta
+	var metaData route.ClientComMeta
 	err := proto.Unmarshal(msg, &metaData)
 	if err != nil {
 		log.Error("Ws: proto unmarsh msg error", err)

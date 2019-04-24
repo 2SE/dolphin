@@ -3,7 +3,7 @@ package ws
 import (
 	"context"
 	"github.com/2se/dolphin/config"
-	"github.com/2se/dolphin/eventbus"
+	"github.com/2se/dolphin/route"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/golang/protobuf/proto"
@@ -21,7 +21,7 @@ func TestListenAndServe(t *testing.T) {
 
 	Init(cfg)
 	// client
-	metaData := &eventbus.ClientComMeta{Resource: "user", Revision: "v1", Action: "getInfo", Subscription: false, Key: "subscirbe_key", Uuid: "test_uuid"}
+	metaData := &route.ClientComMeta{Resource: "user", Revision: "v1", Action: "getInfo", Subscription: false, Key: "subscirbe_key", Uuid: "test_uuid"}
 	metaDataByte, _ := proto.Marshal(metaData)
 	go client(metaDataByte)
 	ListenAndServe(signalHandler())
