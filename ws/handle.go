@@ -1,38 +1,31 @@
 package ws
 
 import (
-	"bytes"
 	"github.com/2se/dolphin/event"
 	"github.com/2se/dolphin/eventbus"
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/schema"
 	log "github.com/sirupsen/logrus"
 	"net/http"
+	"strconv"
 	"sync"
+	"time"
 )
 
 var (
-	W *WsServer
+	W       *WsServer
 	Emmiter = event.NewEmitter(2)
-	wg = new(sync.WaitGroup)
+	wg      = new(sync.WaitGroup)
 )
 
 const HeartBeatEquation = 3000
 
-type TestTopic struct {
-	Version  string
-	Resource string
-	Action   string
+type SubscribeTopicer struct {
+	eventbus.ClientComMeta
 }
 
-func (s *TestTopic) GetTopic() string {
-	buff := bytes.NewBuffer(nil)
-	buff.WriteString(s.Version)
-	buff.WriteString("_")
-	buff.WriteString(s.Action)
-	buff.WriteString("_")
-	buff.WriteString(s.Resource)
-	return buff.String()
+func (s *SubscribeTopicer) GetTopic() string {
+	return s.Key + "_" + strconv.FormatInt(time.Now().UnixNano(), 10)
 }
 
 func ParamBind(obj interface{}, r *http.Request) error {
@@ -48,7 +41,7 @@ func ParamBind(obj interface{}, r *http.Request) error {
 	return nil
 }
 
-func (w *WsServer)handleClientData(cli *Client, msg []byte) {
+func (w *WsServer) handleClientData(cli *Client, msg []byte) {
 	// todo 确定topic
 	var metaData eventbus.ClientComMeta
 	err := proto.Unmarshal(msg, &metaData)
@@ -57,12 +50,13 @@ func (w *WsServer)handleClientData(cli *Client, msg []byte) {
 	}
 
 	log.Println("unmashal msg", metaData)
-	wsTopic := createTopic(metaData.Revision, metaData.Resource, metaData.Action)
+
+	wssub := &SubscribeTopicer{metaData}
 	if metaData.Key != "" {
 		// subscribe
-		subPid, event := Emmiter.Subscribe(wsTopic)
+		subPid, event := Emmiter.Subscribe(wssub)
 		log.Println("Ws: subscribe success", subPid)
-		subscribe := &Subscribe{event, subPid, metaData.Key,  cli.ID, cli.conn}
+		subscribe := &Subscribe{event, subPid, metaData.Key, cli.ID, cli.conn}
 		cli.Subscribes = append(cli.Subscribes, *subscribe)
 	} else {
 		// todo handle data
@@ -70,6 +64,6 @@ func (w *WsServer)handleClientData(cli *Client, msg []byte) {
 	}
 }
 
-func createTopic(revision, resource, act string) *TestTopic {
-	return &TestTopic{revision, resource, act}
-}
+//func createTopic(revision, resource, act string) *TestTopic {
+//	return &TestTopic{revision, resource, act}
+//}
