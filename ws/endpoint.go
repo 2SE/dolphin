@@ -113,52 +113,33 @@ Loop:
 }
 
 func serveWebsocket(w http.ResponseWriter, req *http.Request) {
-	var p Param
-	var cli *Client
-	err := ParamBind(&p, req)
+	conn, _, _, err := ws.UpgradeHTTP(req, w)
 	if err != nil {
-		log.Errorln("Ws: get client_id error", err)
-		// todo http response
-	}
-
-	if p.ClientID == "" {
-		log.Errorf("cannot find the client by nil")
-		// todo http response
-	}
-	if _, ok := W.Clients[p.ClientID]; ok {
-		cli = W.Clients[p.ClientID]
-	} else {
-		conn, _, _, err := ws.UpgradeHTTP(req, w)
-		if err != nil {
-			log.Errorf("%v", err)
-			// TODO http response
-		}
-		cli = &Client{conn: &conn, ID: p.ClientID}
-		W.AddCli <- cli
+		log.Errorf("%v", err)
+		// TODO http response
 	}
 
 	go func() {
 		for {
-			conn := *cli.conn
 			msg, opCode, err := wsutil.ReadClientData(conn)
 			if err != nil {
 				// todo handle error
 				log.Error("Ws: read client data error", err)
 			}
+			log.Printf("got msg from [%s], message is : %v", string(msg))
 
 			switch opCode {
-			case ws.OpClose:
-				conn.Close()
-				W.DelCli <- cli
 			case ws.OpPing:
 				wsutil.WriteServerMessage(conn, ws.OpPong, nil)
-				cli.Timestamp = time.Now().UnixNano() / 1e6
+				clientID := W.Conns[&conn]
+				W.Clients[clientID].Timestamp = time.Now().UnixNano() / 1e6
+			case ws.OpClose:
+				conn.Close()
 			default:
-				cli.Timestamp = time.Now().UnixNano() / 1e6
+				clientID := W.Conns[&conn]
+				W.Clients[clientID].Timestamp = time.Now().UnixNano() / 1e6
+				W.handleClientData(&conn, msg)
 			}
-
-			log.Printf("got msg from [%s], message is : %v", p.ClientID, string(msg))
-			W.handleClientData(cli, msg)
 		}
 	}()
 }

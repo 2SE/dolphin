@@ -8,6 +8,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/schema"
 	log "github.com/sirupsen/logrus"
+	"net"
 	"net/http"
 	"strconv"
 	"sync"
@@ -43,8 +44,14 @@ func ParamBind(obj interface{}, r *http.Request) error {
 	return nil
 }
 
-func (w *WsServer) handleClientData(cli *Client, msg []byte) {
-	// todo 确定topic
+func (w *WsServer) handleClientData(conn *net.Conn, msg []byte) {
+	var cli = &Client{conn: conn}
+
+	// login & get client id
+	if _, ok := w.Conns[conn]; !ok {
+		cli.ID = verifyData(msg)
+		w.AddCli <- cli
+	}
 	req := new(route.ClientComRequest)
 	err := proto.Unmarshal(msg, req)
 	if err != nil {
@@ -58,8 +65,8 @@ func (w *WsServer) handleClientData(cli *Client, msg []byte) {
 		// subscribe
 		subPid, event := Emmiter.Subscribe(wssub)
 		log.Println("Ws: subscribe success", subPid)
-		subscribe := &Subscribe{event, subPid, req.Meta.Key, cli.ID, cli.conn}
-		cli.Subscribes = append(cli.Subscribes, *subscribe)
+		subscribe := &Subscribe{event, nil, subPid, req.Meta.Key, cli}
+		w.Subscribe <- subscribe
 	} else {
 		// todo handle data
 		//log.Printf("Ws: got data, client is %s, data is %v", cli.ID, metaData)
@@ -72,18 +79,33 @@ func (w *WsServer) handleClientData(cli *Client, msg []byte) {
 		if redirect {
 			res, err := cluster.Emit(pr.PeerName(), pr.AppName(), req)
 			if err != nil {
-
+				// todo handle error
+				log.Error("Ws: handleClientData redirect error ", err)
 			}
-			//TODO send response to web
+
+			// todo handle redirect
+			log.Println("Ws: got redirect request", res.String())
+
 		} else {
 			rep, err := route.GetRouterInstance().RouteOut(pr.AppName(), req)
 			if err != nil {
-
+				// todo handle error
+				log.Error("Ws: handleClientData router out error ", err)
 			}
-			//TODO send response to web
-
+			data, err := proto.Marshal(rep)
+			if err != nil {
+				// todo handle error
+				log.Error("Ws: marshal ServerComResponse data error", err)
+			}
+			cli.Message = data
+			w.SendMsg <- cli
 		}
 	}
+}
+
+// todo =====================================
+func verifyData(msg []byte) string {
+	return strconv.FormatInt(time.Now().Unix(), 10)
 }
 
 //func createTopic(revision, resource, act string) *TestTopic {
