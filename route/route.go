@@ -19,10 +19,11 @@ type MethodPath [3]byte
 var r *resourcesPool
 
 var (
-	ErrPeerNotFound       = errors.New("route: peer not found")
-	ErrMethodPathNotFound = errors.New("route: methodPath not found")
-	ErrClientExists       = errors.New("route: client exists")
-	ErrAddressNotFound    = errors.New("route: address not fount")
+	ErrPeerNotFound         = errors.New("route: peer not found")
+	ErrMethodPathNotFound   = errors.New("route: methodPath not found")
+	ErrClientExists         = errors.New("route: client exists")
+	ErrAddressNotFound      = errors.New("route: address not fount")
+	ErrGprcServerConnFailed = errors.New("route: connection to grpc server failed")
 )
 
 type Router interface {
@@ -50,13 +51,13 @@ func GetRouterInstance() Router {
 // 初始化本地route
 // peer 本地cluster 编号
 func InitRoute(peer string) Router {
-	route := &resourcesPool{
+	r = &resourcesPool{
 		curPeer:    peer,
 		topicPeers: make(map[MethodPath]*PeersRoute),
 		ring:       make(map[MethodPath]*ringhash.Ring),
 		appAddr:    make(map[string]string),
 	}
-	return route
+	return r
 }
 
 type resourcesPool struct {

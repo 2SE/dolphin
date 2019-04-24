@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"time"
 )
 
@@ -16,8 +17,12 @@ func (p *resourcesPool) TryAddClient(address string) error {
 		return fmt.Errorf("did not connect: %v", err)
 	}
 	appCli := NewAppServeClient(conn)
-	p.clients[address] = appCli
-	return nil
+	state := conn.GetState()
+	if state == connectivity.Connecting {
+		p.clients[address] = appCli
+		return nil
+	}
+	return ErrGprcServerConnFailed
 }
 
 func (p *resourcesPool) RemoveClient(address string) {

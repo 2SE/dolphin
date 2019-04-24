@@ -1,12 +1,13 @@
 package test
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/2se/dolphin/route"
 	"github.com/2se/dolphin/routehttp"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"testing"
 )
 
@@ -16,7 +17,6 @@ func TestRouteHttpStart(t *testing.T) {
 }
 
 func TestRouteHttpTest(t *testing.T) {
-	client := &http.Client{}
 
 	appInfo := &routehttp.AppInfo{
 		AppName: "testApp",
@@ -27,27 +27,21 @@ func TestRouteHttpTest(t *testing.T) {
 			{1, 2, 5},
 		},
 	}
-	type MethodPath struct {
-		Reversion byte
-		Resource  byte
-		Action    byte
-	}
-	req, err := http.NewRequest("POST", "127.0.0.1:10086", strings.NewReader("name=cjb"))
+	appJson, err := json.Marshal(appInfo)
 	if err != nil {
-		// handle error
+		t.Error(err)
+		return
 	}
-
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Cookie", "name=anny")
-
-	resp, err := client.Do(req)
-
+	resp, err := http.Post("http://127.0.0.1:10086", "application/json; charset=utf-8", bytes.NewReader(appJson))
+	if err != nil {
+		t.Error(err)
+		return
+	}
 	defer resp.Body.Close()
-
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		// handle error
+		t.Error(err)
+		return
 	}
-
 	fmt.Println(string(body))
 }
