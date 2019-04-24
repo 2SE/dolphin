@@ -5,7 +5,8 @@ import "github.com/golang/protobuf/proto"
 // maybe protobuf 这里需要定义交互需要的协议
 type RequestPkt struct {
 	// 发送这条请求的节点名称
-	Node string
+	Node    string
+	AppName string
 	// Ring hash signature of the node sending this request
 	// Signature must match the signature of the receiver, otherwise the
 	// Cluster is desynchronized.

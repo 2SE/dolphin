@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"github.com/2se/dolphin/config"
+	"github.com/2se/dolphin/route"
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 	"net"
@@ -239,7 +240,7 @@ func Recv(message proto.Message) {
 // Emit call remote Cluster.Emit
 // the request from client
 // it will choose one peer to send request and reecived call back response
-func Emit(toPeer string, message proto.Message) (response proto.Message, err error) {
+func Emit(toPeer, toApp string, message proto.Message) (response proto.Message, err error) {
 	if Partitioned() {
 		return nil, PartitionedErr
 	}
@@ -247,6 +248,7 @@ func Emit(toPeer string, message proto.Message) (response proto.Message, err err
 	if peer, ok := gwCluster.peers[toPeer]; ok {
 		req := &RequestPkt{
 			Node:      gwCluster.thisName,
+			AppName:   toApp,
 			Signature: "xxx",
 			Pkt:       message,
 		}
@@ -260,6 +262,7 @@ func Emit(toPeer string, message proto.Message) (response proto.Message, err err
 	}
 
 	// TODO return error
+
 	return
 }
 
@@ -276,6 +279,14 @@ type Cluster struct {
 func (c *Cluster) Emit(msg *RequestPkt, resp *RespPkt) error {
 	log.Printf("cluster: Master request received from node '%s'", msg.Node)
 	// TODO 调用Router模块的 RouteOut方法
+	rep, err := route.GetRouterInstance().RouteOut(msg.AppName, msg.Pkt)
+	if err != nil {
+		return err
+	}
+
+	resp.Code = 200
+	resp.Node = c.thisName
+	resp.Pkt = rep
 
 	return nil
 }

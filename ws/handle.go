@@ -1,8 +1,9 @@
 package ws
 
 import (
-	"github.com/2se/dolphin/route"
+	"github.com/2se/dolphin/cluster"
 	"github.com/2se/dolphin/event"
+	"github.com/2se/dolphin/route"
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/schema"
 	log "github.com/sirupsen/logrus"
@@ -21,7 +22,7 @@ var (
 const HeartBeatEquation = 3000
 
 type SubscribeTopicer struct {
-	route.ClientComMeta
+	*route.ClientComMeta
 }
 
 func (s *SubscribeTopicer) GetTopic() string {
@@ -43,24 +44,44 @@ func ParamBind(obj interface{}, r *http.Request) error {
 
 func (w *WsServer) handleClientData(cli *Client, msg []byte) {
 	// todo 确定topic
-	var metaData route.ClientComMeta
-	err := proto.Unmarshal(msg, &metaData)
+	req := new(route.ClientComRequest)
+	err := proto.Unmarshal(msg, req)
 	if err != nil {
 		log.Error("Ws: proto unmarsh msg error", err)
 	}
 
-	log.Println("unmashal msg", metaData)
+	log.Println("unmashal msg", req)
 
-	wssub := &SubscribeTopicer{metaData}
-	if metaData.Key != "" {
+	wssub := &SubscribeTopicer{req.Meta}
+	if req.Meta.Key != "" {
 		// subscribe
 		subPid, event := Emmiter.Subscribe(wssub)
 		log.Println("Ws: subscribe success", subPid)
-		subscribe := &Subscribe{event, subPid, metaData.Key, cli.ID, cli.conn}
+		subscribe := &Subscribe{event, subPid, req.Meta.Key, cli.ID, cli.conn}
 		cli.Subscribes = append(cli.Subscribes, *subscribe)
 	} else {
 		// todo handle data
 		//log.Printf("Ws: got data, client is %s, data is %v", cli.ID, metaData)
+		//todo
+		mp := route.MethodPath{1, 2, 3}
+		pr, redirect, err := route.GetRouterInstance().RouteIn(mp, cli.ID)
+		if err != nil {
+
+		}
+		if redirect {
+			res, err := cluster.Emit(pr.PeerName(), pr.AppName(), req)
+			if err != nil {
+
+			}
+			//TODO send response to web
+		} else {
+			rep, err := route.GetRouterInstance().RouteOut(pr.AppName(), req)
+			if err != nil {
+
+			}
+			//TODO send response to web
+
+		}
 	}
 }
 

@@ -2,6 +2,7 @@ package route
 
 import (
 	"errors"
+	"github.com/golang/protobuf/proto"
 	"sync"
 
 	"sort"
@@ -28,9 +29,9 @@ var (
 
 type Router interface {
 	//获取路由分流指向
-	RouteIn(mp MethodPath, userId string) (pr PeerRoute, redirect bool, err error)
+	RouteIn(mp MethodPath, id string) (pr PeerRoute, redirect bool, err error)
 	//更具appName将request定向到指定Grpc服务并返回结果
-	RouteOut(appName string, request *ClientComRequest) (response *ServerComResponse, err error)
+	RouteOut(appName string, request proto.Message) (response *ServerComResponse, err error)
 	//注册单个
 	//appName 资源服务名称
 	//peer 节点名称（空字符串为本地）
@@ -73,6 +74,13 @@ type PeerRoute [2]string
 
 type PeersRoute []PeerRoute
 
+func (s PeerRoute) PeerName() string {
+	return s[0]
+
+}
+func (s PeerRoute) AppName() string {
+	return s[1]
+}
 func (s PeersRoute) Len() int      { return len(s) }
 func (s PeersRoute) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s PeersRoute) Less(i, j int) bool {
@@ -175,7 +183,7 @@ func (s *resourcesPool) UnRegisterApp(appName string) {
 	}
 }
 
-func (s *resourcesPool) RouteIn(mp MethodPath, userId string) (pr PeerRoute, redirect bool, err error) {
+func (s *resourcesPool) RouteIn(mp MethodPath, id string) (pr PeerRoute, redirect bool, err error) {
 	psr, ok := s.topicPeers[mp]
 	if !ok {
 		return PeerRoute{}, false, ErrMethodPathNotFound
