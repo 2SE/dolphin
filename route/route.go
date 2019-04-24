@@ -58,8 +58,11 @@ func InitRoute(peer string) Router {
 }
 
 type resourcesPool struct {
-	curPeer    string
-	appAddr    map[string]string //key:appName val:address (only save local app)
+	curPeer string
+	appAddr map[string]string //key:appName val:address (only save local app)
+	addrApp map[string]string //key:address val:appname
+	connErr map[string]int16  //key address val:count the err count in a period time for client send request
+
 	topicPeers map[common.MethodPath]*PeersRoute
 	clients    map[string]AppServeClient //key:address val:grpcClient (only save local app)
 	ring       map[common.MethodPath]*ringhash.Ring
@@ -137,6 +140,7 @@ func (s *resourcesPool) Register(mps []common.MethodPath, appName, peerName, add
 		if err != nil {
 			return err
 		}
+		s.addrApp[address] = appName
 		s.appAddr[appName] = address
 	}
 	pr := PeerRoute{peerName, appName}
@@ -175,6 +179,7 @@ func (s *resourcesPool) UnRegisterApp(appName string) {
 	}
 	if address, ok := s.appAddr[appName]; ok {
 		delete(s.appAddr, appName)
+		delete(s.addrApp, address)
 		s.RemoveClient(address)
 	}
 }
