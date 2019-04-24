@@ -2,6 +2,7 @@ package route
 
 import (
 	"errors"
+	"github.com/2se/dolphin/common"
 	"github.com/golang/protobuf/proto"
 	"sync"
 
@@ -11,11 +12,6 @@ import (
 
 	"github.com/2se/dolphin/ringhash"
 )
-
-// fisrt byte  : version
-// second byte : resource
-// third byte  : action
-type MethodPath [3]byte
 
 var r *resourcesPool
 
@@ -29,20 +25,20 @@ var (
 
 type Router interface {
 	//获取路由分流指向
-	RouteIn(mp MethodPath, id string) (pr PeerRoute, redirect bool, err error)
+	RouteIn(mp common.MethodPath, id string) (pr PeerRoute, redirect bool, err error)
 	//更具appName将request定向到指定Grpc服务并返回结果
-	RouteOut(appName string, request proto.Message) (response *ServerComResponse, err error)
+	RouteOut(appName string, request proto.Message) (response proto.Message, err error)
 	//注册单个
 	//appName 资源服务名称
 	//peer 节点名称（空字符串为本地）
 	//address  资源服务连接地址（ps:www.example.com:8080）
-	Register(mps []MethodPath, appName, peerName, address string) error
+	Register(mps []common.MethodPath, appName, peerName, address string) error
 	//注销app下所有
 	UnRegisterApp(appName string)
 	//注销peer下所有
 	UnRegisterPeer(peerName string)
 	//for unit test
-	listTopicPeers() map[MethodPath]*PeersRoute
+	listTopicPeers() map[common.MethodPath]*PeersRoute
 }
 
 func GetRouterInstance() Router {
@@ -54,8 +50,8 @@ func GetRouterInstance() Router {
 func InitRoute(peer string) Router {
 	r = &resourcesPool{
 		curPeer:    peer,
-		topicPeers: make(map[MethodPath]*PeersRoute),
-		ring:       make(map[MethodPath]*ringhash.Ring),
+		topicPeers: make(map[common.MethodPath]*PeersRoute),
+		ring:       make(map[common.MethodPath]*ringhash.Ring),
 		appAddr:    make(map[string]string),
 	}
 	return r
@@ -64,9 +60,9 @@ func InitRoute(peer string) Router {
 type resourcesPool struct {
 	curPeer    string
 	appAddr    map[string]string //key:appName val:address (only save local app)
-	topicPeers map[MethodPath]*PeersRoute
+	topicPeers map[common.MethodPath]*PeersRoute
 	clients    map[string]AppServeClient //key:address val:grpcClient (only save local app)
-	ring       map[MethodPath]*ringhash.Ring
+	ring       map[common.MethodPath]*ringhash.Ring
 	m          sync.RWMutex
 }
 
@@ -132,7 +128,7 @@ func (s PeerRoute) equals(pr PeerRoute) bool {
 	return s == pr
 }
 
-func (s *resourcesPool) Register(mps []MethodPath, appName, peerName, address string) error {
+func (s *resourcesPool) Register(mps []common.MethodPath, appName, peerName, address string) error {
 	s.m.Lock()
 	defer s.m.Unlock()
 	if peerName == "" {
@@ -183,7 +179,7 @@ func (s *resourcesPool) UnRegisterApp(appName string) {
 	}
 }
 
-func (s *resourcesPool) RouteIn(mp MethodPath, id string) (pr PeerRoute, redirect bool, err error) {
+func (s *resourcesPool) RouteIn(mp common.MethodPath, id string) (pr PeerRoute, redirect bool, err error) {
 	psr, ok := s.topicPeers[mp]
 	if !ok {
 		return PeerRoute{}, false, ErrMethodPathNotFound
@@ -197,7 +193,7 @@ func (s *resourcesPool) RouteIn(mp MethodPath, id string) (pr PeerRoute, redirec
 		ring.Add(keys...)
 		s.ring[mp] = ring
 	}
-	peer := s.ring[mp].Get(userId)
+	peer := s.ring[mp].Get(id)
 	pa, err := psr.findOne(peer)
 	if err != nil {
 		return PeerRoute{}, false, err
@@ -208,13 +204,13 @@ func (s *resourcesPool) RouteIn(mp MethodPath, id string) (pr PeerRoute, redirec
 	return pa, redirect, err
 }
 
-func (s *resourcesPool) RouteOut(appName string, request *ClientComRequest) (response *ServerComResponse, err error) {
+func (s *resourcesPool) RouteOut(appName string, request proto.Message) (response proto.Message, err error) {
 	addr, ok := s.appAddr[appName]
 	if !ok {
 		return nil, ErrAddressNotFound
 	}
 	return s.callAppAction(addr, request)
 }
-func (s *resourcesPool) listTopicPeers() map[MethodPath]*PeersRoute {
+func (s *resourcesPool) listTopicPeers() map[common.MethodPath]*PeersRoute {
 	return s.topicPeers
 }

@@ -3,6 +3,7 @@ package route
 import (
 	"context"
 	"fmt"
+	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"time"
@@ -29,8 +30,8 @@ func (p *resourcesPool) RemoveClient(address string) {
 	delete(p.clients, address)
 }
 
-func (p *resourcesPool) callAppAction(address string, request *ClientComRequest) (*ServerComResponse, error) {
+func (p *resourcesPool) callAppAction(address string, request proto.Message) (*ServerComResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	return p.clients[address].Request(ctx, request)
+	return p.clients[address].Request(ctx, request.(*ClientComRequest))
 }

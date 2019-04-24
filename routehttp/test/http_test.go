@@ -22,9 +22,9 @@ func TestRouteHttpTest(t *testing.T) {
 		AppName: "testApp",
 		Address: "127.0.0.1:10087",
 		Methods: []routehttp.MethodPath{
-			{1, 2, 3},
-			{1, 2, 4},
-			{1, 2, 5},
+			{"1", "2", "3"},
+			{"1", "2", "4"},
+			{"1", "2", "5"},
 		},
 	}
 	appJson, err := json.Marshal(appInfo)

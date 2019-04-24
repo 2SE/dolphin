@@ -2,6 +2,7 @@ package ws
 
 import (
 	"github.com/2se/dolphin/cluster"
+	"github.com/2se/dolphin/common"
 	"github.com/2se/dolphin/event"
 	"github.com/2se/dolphin/route"
 	"github.com/golang/protobuf/proto"
@@ -63,7 +64,7 @@ func (w *WsServer) handleClientData(cli *Client, msg []byte) {
 		// todo handle data
 		//log.Printf("Ws: got data, client is %s, data is %v", cli.ID, metaData)
 		//todo
-		mp := route.MethodPath{1, 2, 3}
+		mp := common.NewMethodPath(req.Meta.Revision, req.Meta.Resource, req.Meta.Action)
 		pr, redirect, err := route.GetRouterInstance().RouteIn(mp, cli.ID)
 		if err != nil {
 

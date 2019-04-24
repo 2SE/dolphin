@@ -2,6 +2,7 @@ package route
 
 import (
 	"fmt"
+	"github.com/2se/dolphin/common"
 	"sort"
 	"testing"
 
@@ -33,31 +34,19 @@ func TestPeersRoute_Sort(t *testing.T) {
 
 func TestResourcesPool_RegiserSubResources(t *testing.T) {
 	route := InitRoute("node1")
-	route.Register([]MethodPath{{1, 2, 3}, {1, 2, 4}, {2, 3, 4}}, "50", "", "0.0.0.0:0000")
-	route.Register([]MethodPath{{1, 2, 3}, {1, 2, 4}, {2, 3, 4}}, "50", "node2", "0.0.0.0:0000")
+	route.Register([]common.MethodPath{
+		common.NewMethodPath("1", "2", "3"),
+		common.NewMethodPath("1", "3", "3"),
+		common.NewMethodPath("1", "4", "3"),
+	}, "50", "", "0.0.0.0:0000")
+
+	route.Register([]common.MethodPath{
+		common.NewMethodPath("1", "2", "3"),
+		common.NewMethodPath("1", "3", "3"),
+		common.NewMethodPath("1", "4", "3"),
+	}, "50", "node2", "0.0.0.0:0000")
 	for k, v := range route.listTopicPeers() {
 		fmt.Println("key:", k)
 		fmt.Printf("peer:%s app:%s ", (*v)[0][0], (*v)[0][1])
 	}
-}
-
-func TestResourcesPool_RouteIn(t *testing.T) {
-	/*
-		"A": "B",
-		"B": "C",
-		"C": "C",
-		"D": "A",
-		"E": "B",
-		"F": "C",*/
-	route := InitRoute("A")
-	route.Register([]MethodPath{{1, 2, 3}, {1, 2, 4}, {2, 3, 4}}, "50", "", "0.0.0.0:0000")
-	route.Register([]MethodPath{{1, 2, 3}, {1, 2, 4}, {2, 3, 4}}, "50", "B", "0.0.0.0:0000")
-	route.Register([]MethodPath{{1, 2, 3}, {1, 2, 4}, {2, 3, 4}}, "50", "C", "0.0.0.0:0000")
-	//userId := "B"
-	//mp := MethodPath{1, 2, 3}
-	/*data, err := route.RouteIn(mp, userId)
-	if err != nil {
-		fmt.Println(err)
-	}*/
-	//fmt.Println("other peer", data)
 }

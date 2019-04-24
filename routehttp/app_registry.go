@@ -3,6 +3,7 @@ package routehttp
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/2se/dolphin/common"
 	"github.com/2se/dolphin/route"
 	"io/ioutil"
 	"log"
@@ -12,12 +13,12 @@ import (
 type AppInfo struct {
 	AppName string
 	Address string
-	Methods []MethodPath
+	Methods []MP
 }
-type MethodPath struct {
-	Reversion byte
-	Resource  byte
-	Action    byte
+type MP struct {
+	Reversion string
+	Resource  string
+	Action    string
 }
 
 func RegistryHandler(w http.ResponseWriter, r *http.Request) {
@@ -32,9 +33,9 @@ func RegistryHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 	}
-	mps := make([]route.MethodPath, len(appInfo.Methods))
+	mps := make([]common.MethodPath, len(appInfo.Methods))
 	for _, v := range appInfo.Methods {
-		mps = append(mps, route.MethodPath{v.Reversion, v.Resource, v.Action})
+		mps = append(mps, common.NewMethodPath(v.Reversion, v.Resource, v.Action))
 	}
 
 	err = route.GetRouterInstance().Register(mps, appInfo.AppName, "", appInfo.Address)
