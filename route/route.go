@@ -13,7 +13,7 @@ import (
 
 	"hash/crc32"
 
-	"github.com/2se/dolphin/ringhash"
+	"github.com/2se/dolphin/common/ringhash"
 )
 
 var r *resourcesPool
