@@ -147,8 +147,6 @@ func (w *WsServer) addClient(c *Client) {
 
 // subscribe ws client subscribe
 func (w *WsServer) sbuscribe(s *Subscribe) {
-	w.m.Unlock()
-
 	// add client to session
 	w.AddCli <- s.cli
 
