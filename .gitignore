@@ -66,6 +66,8 @@ atlassian-ide-plugin.xml
 
 # Cursive Clojure plugin
 .idea/**
+.idea/
+dolphin.iml
 
 # Crashlytics plugin (for Android Studio and IntelliJ)
 com_crashlytics_export_strings.xml
@@ -76,3 +78,7 @@ debug
 
 cmd/dolphin/*toml
 
+dolphin
+!cmd/dolphin
+
+gateway

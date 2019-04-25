@@ -75,7 +75,7 @@ func (w *WsServer) handleClientData(conn *net.Conn, msg []byte) {
 
 		}
 		if redirect {
-			res, err := cluster.Emit(pr.PeerName(), pr.AppName(), req)
+			res, err := cluster.Emit(pr, req)
 			if err != nil {
 				// todo handle error
 				log.Error("Ws: handleClientData redirect error ", err)

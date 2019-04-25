@@ -28,7 +28,7 @@ const (
 
 var (
 	NoConfigErr    = errors.New("no configuration")
-	NoNodesErr     = errors.New("no peers defined")
+	NoPeersErr     = errors.New("no peers defined")
 	PartitionedErr = errors.New("cluster partitioned")
 
 	// gwCluster 表示集群中的本节点。如果gwCluster为nil，表示当前以单节点运行，而非集群模式。
@@ -51,7 +51,7 @@ func Init(cnf *config.ClusterConfig) (peerName string, err error) {
 		return "", NoConfigErr
 	}
 
-	// Name of the current node is not specified - disable clustering
+	// Name of the current peer is not specified - disable clustering
 	if cnf.Self == "" {
 		log.Debug("cluster: config with a singleton mode.")
 		return LocalPeer, nil
@@ -64,9 +64,9 @@ func Init(cnf *config.ClusterConfig) (peerName string, err error) {
 	peerConnCnf = cnf.Connection
 	log.WithField("peer config", peerConnCnf).Debug("cluster: peer config check")
 
-	var nodeNames []string
+	var peerNames []string
 	for _, host := range cnf.Nodes {
-		nodeNames = append(nodeNames, host.Name)
+		peerNames = append(peerNames, host.Name)
 
 		if host.Name == cnf.Self {
 			gwCluster.listenOn = host.Address
@@ -83,10 +83,12 @@ func Init(cnf *config.ClusterConfig) (peerName string, err error) {
 
 	if len(gwCluster.peers) == 0 {
 		log.Error("cluster: no configuration for cluster")
-		return "", NoNodesErr
+		return "", NoPeersErr
 	}
 
-	gwCluster.failoverInit(cnf.Failover)
+	if !gwCluster.failoverInit(cnf.Failover) {
+		gwCluster.checkPeers(true, nil)
+	}
 	log.Debug("cluster: cluster inited")
 	return gwCluster.thisName, nil
 }
@@ -124,7 +126,7 @@ func Start() {
 		log.WithError(err).Fatal("cluster: register net/rpc service failed! exit(1)")
 	}
 
-	log.Infof("[cluster] cluster of %d peers initialized, node '%s' listening on [%s]",
+	log.Infof("cluster: %d peers initialized, peer '%s' listening on [%s]",
 		len(gwCluster.peers)+1,
 		gwCluster.thisName,
 		gwCluster.listenOn,
@@ -182,14 +184,14 @@ func Shutdown() {
 }
 
 // Partitioned checks if the cluster is partitioned due to network or other failure and if the
-// current node is a part of the smaller partition.
+// current peer is a part of the smaller partition.
 func Partitioned() bool {
 	if gwCluster == nil || gwCluster.fo == nil {
 		// Cluster not initialized or failover disabled therefore not partitioned.
 		return false
 	}
 
-	return (len(gwCluster.peers)+1)/2 >= len(gwCluster.fo.activeNodes)
+	return (len(gwCluster.peers)+1)/2 >= len(gwCluster.fo.activePeers)
 }
 
 func Name() string {
@@ -209,11 +211,11 @@ func Recv(message proto.Message) {
 	}
 
 	req := &RequestPkt{
-		Node: gwCluster.thisName,
-		Pkt:  message,
+		PeerName: gwCluster.thisName,
+		Pkt:      message,
 	}
-	nodeCount := len(gwCluster.peers)
-	done := make(chan *rpc.Call, nodeCount)
+	peerCount := len(gwCluster.peers)
+	done := make(chan *rpc.Call, peerCount)
 	for _, peer := range gwCluster.peers {
 		resp := RespPkt{}
 		peer.callAsync("Cluster.Recv", req, &resp, done)
@@ -221,14 +223,14 @@ func Recv(message proto.Message) {
 
 	// TODO change timeout time
 	timeout := time.NewTimer(defaultTimeout)
-	for i := 0; i < nodeCount; i++ {
+	for i := 0; i < peerCount; i++ {
 		select {
 		case call := <-done:
 			if call.Error != nil {
 				log.Warnf("cluster: call remote method failed. cause: %v", call.Error)
 			}
 		case <-timeout.C:
-			i = nodeCount
+			i = peerCount
 		}
 	}
 
@@ -237,18 +239,23 @@ func Recv(message proto.Message) {
 	}
 }
 
+type router interface {
+	PeerName() string
+	AppName() string
+}
+
 // Emit call remote Cluster.Emit
 // the request from client
 // it will choose one peer to send request and reecived call back response
-func Emit(toPeer, toApp string, message proto.Message) (response proto.Message, err error) {
+func Emit(value router, message proto.Message) (response proto.Message, err error) {
 	if Partitioned() {
 		return nil, PartitionedErr
 	}
 
-	if peer, ok := gwCluster.peers[toPeer]; ok {
+	if peer, ok := gwCluster.peers[value.PeerName()]; ok {
 		req := &RequestPkt{
-			Node:      gwCluster.thisName,
-			AppName:   toApp,
+			PeerName:  gwCluster.thisName,
+			AppName:   value.AppName(),
 			Signature: "xxx",
 			Pkt:       message,
 		}
@@ -268,16 +275,17 @@ func Emit(toPeer, toApp string, message proto.Message) (response proto.Message, 
 
 // 集群有两个角色一个是主节点角色，一个是从节点角色。在同一时间，集群的节点只承担一种角色
 type Cluster struct {
-	peers    map[string]*peer // 集群中其他的节点列表
-	thisName string           // 本节点的名称
-	listenOn string           // 本节点的集群服务地址
-	inbound  *net.TCPListener // 本节点的进群服务TCP
-	fo       *clusterFailover // Failover parameters. Could be nil if failover is not enabled
+	peers     map[string]*peer // 集群中其他的节点列表
+	signature string           // signature for peers array(sort by charactor asc)
+	thisName  string           // 本节点的名称
+	listenOn  string           // 本节点的集群服务地址
+	inbound   *net.TCPListener // 本节点的进群服务TCP
+	fo        *clusterFailover // Failover parameters. Could be nil if failover is not enabled
 }
 
 // Emit called by a remote peer.
 func (c *Cluster) Emit(msg *RequestPkt, resp *RespPkt) error {
-	log.Printf("cluster: Master request received from node '%s'", msg.Node)
+	log.Printf("cluster: Master request received from peer '%s'", msg.PeerName)
 	// TODO 调用Router模块的 RouteOut方法
 	rep, err := route.GetRouterInstance().RouteOut(msg.AppName, msg.Pkt)
 	if err != nil {
@@ -285,7 +293,7 @@ func (c *Cluster) Emit(msg *RequestPkt, resp *RespPkt) error {
 	}
 
 	resp.Code = 200
-	resp.Node = c.thisName
+	resp.PeerValue = &PeerValue{c.thisName, c.listenOn}
 	resp.Pkt = rep
 
 	return nil
@@ -295,7 +303,7 @@ func (c *Cluster) Emit(msg *RequestPkt, resp *RespPkt) error {
 // 看作是内部节点对其他节点的广播，不对客户端开放
 // Called by remote peer
 func (c *Cluster) Recv(msg *RespPkt, unused *bool) error {
-	log.Println("cluster: response from Master for session ", msg.Node)
+	log.Println("cluster: response from Master for session ", msg.PeerValue)
 	// TODO
 	return nil
 }
@@ -334,6 +342,7 @@ func (c *Cluster) run() {
 	hbTicker := time.NewTicker(c.fo.heartBeat)
 
 	missed := 0
+	rehashSkipped := false
 
 	for {
 		select {
@@ -358,8 +367,11 @@ func (c *Cluster) run() {
 			// Ping from a leader.
 			if ping.Term < c.fo.term {
 				// This is a ping from a stale leader. Ignore.
-				// 这个ping来自老的主节点，忽略。
-				log.Info("cluster: ping from a stale leader", ping.Term, c.fo.term, ping.Leader, c.fo.leader)
+				log.WithField("ping_term", ping.Term).
+					WithField("failOver_term", c.fo.term).
+					WithField("ping_leader", ping.Leader).
+					WithField("failOver_leader", c.fo.leader).
+					Info("cluster: ping from a stale leader")
 				continue
 			}
 
@@ -380,26 +392,87 @@ func (c *Cluster) run() {
 			}
 
 			missed = 0
+			if ping.Signature != c.signature {
+				if rehashSkipped {
+					log.WithField("ping_leader", ping.Leader).
+						WithField("ping_peers", ping.PeerValues).
+						WithField("ping_signature", ping.Signature).
+						WithField("self_signature", c.signature).
+						Info("cluster: recheck activted peers at a request of")
+					c.checkPeers(false, ping.PeerValues)
+					rehashSkipped = false
+				} else {
+					rehashSkipped = true
+				}
+			}
 
 		case vreq := <-c.fo.electionVote:
 			log.WithField("recv term", vreq.req.Term).
-				WithField("remote name", vreq.req.Node).
+				WithField("remote name", vreq.req.PeerValue).
 				WithField("this name", c.thisName).Debug("cluster: recv election vote...")
 
 			if c.fo.term < vreq.req.Term {
-				// This is a new election. This node has not voted yet. Vote for the requestor and
+				// This is a new election. This peer has not voted yet. Vote for the requestor and
 				// clear the current leader.
-				log.Infof("Voting YES for %s, my term %d, vote term %d", vreq.req.Node, c.fo.term, vreq.req.Term)
+				log.Infof("Voting YES for %s, my term %d, vote term %d", vreq.req.PeerValue, c.fo.term, vreq.req.Term)
 				c.fo.term = vreq.req.Term
 				c.fo.leader = ""
 				vreq.resp <- VoteResponse{Result: true, Term: c.fo.term}
 			} else {
-				// This node has voted already or stale election, reject.
-				log.Infof("Voting NO for %s, my term %d, vote term %d", vreq.req.Node, c.fo.term, vreq.req.Term)
+				// This peer has voted already or stale election, reject.
+				log.Infof("Voting NO for %s, my term %d, vote term %d", vreq.req.PeerValue, c.fo.term, vreq.req.Term)
 				vreq.resp <- VoteResponse{Result: false, Term: c.fo.term}
 			}
 		case <-c.fo.done:
 			return
+		}
+	}
+}
+
+func (c *Cluster) checkPeers(onInit bool, peerValues []*PeerValue) {
+	var names []*PeerValue
+	if peerValues == nil {
+		for _, n := range peerValues {
+			names = append(names, n)
+		}
+		names = append(names, &PeerValue{c.thisName, c.listenOn})
+	} else {
+		names = append(names, peerValues...)
+	}
+
+	c.signature = digestPeerValue(names).Signature()
+	log.WithField("signature", c.signature).Info("check peers and set signature")
+	if !onInit {
+		var found bool
+		// finding old peer not in new peer list
+		for key, peer := range c.peers {
+			for _, name := range names {
+				if key == name.PeerName {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				peer.disconnect()
+				delete(c.peers, key)
+			}
+
+			found = false
+		}
+
+		for _, name := range names {
+			// finding new peer not in peer list
+			if _, ok := c.peers[name.PeerName]; !ok && name.PeerName != c.thisName {
+				newPeer := &peer{
+					address: name.PeerAddr,
+					name:    name.PeerName,
+					done:    make(chan bool, 1),
+				}
+
+				c.peers[name.PeerName] = newPeer
+				go newPeer.reconnect()
+			}
 		}
 	}
 }

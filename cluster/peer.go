@@ -24,9 +24,22 @@ type peer struct {
 	done         chan bool
 }
 
-func (n *peer) reconnect() {
-	var reconnTimer *time.Timer
+func (n *peer) disconnect() {
+	n.lock.RLock()
+	defer n.lock.RUnlock()
 
+	if n.reconnecting {
+		n.done <- true
+		return
+	}
+
+	if n.connected {
+		err := n.endpoint.Close()
+		log.WithField("error", err).Infof("disconnect remote peer '%s'", n.name)
+	}
+}
+
+func (n *peer) reconnect() {
 	// Avoid parallel reconnection threads
 	n.lock.Lock()
 	if n.reconnecting {
@@ -35,8 +48,8 @@ func (n *peer) reconnect() {
 	}
 	n.reconnecting = true
 	n.lock.Unlock()
-
 	var (
+		wait        *time.Timer
 		count       int
 		err         error
 		conn        net.Conn
@@ -59,9 +72,17 @@ func (n *peer) reconnect() {
 		conn, err = net.DialTimeout(tcpNetwork, n.address, dialTimeout)
 		// Attempt to reconnect right away
 		if err == nil {
+			n.lock.Lock()
+			if n.reconnecting == false {
+				conn.Close()
+				n.lock.Unlock()
+				return
+			}
+			n.lock.Unlock()
+
 			n.newClient(conn)
-			if reconnTimer != nil {
-				reconnTimer.Stop()
+			if wait != nil {
+				wait.Stop()
 			}
 
 			n.lock.Lock()
@@ -71,23 +92,23 @@ func (n *peer) reconnect() {
 			log.Infof("cluster: connection to '%s' established", n.name)
 			return
 		} else if count == 0 {
-			reconnTimer = time.NewTimer(defaultClusterReconnect)
+			wait = time.NewTimer(defaultClusterReconnect)
 		} else {
-			reconnTimer.Reset(nextWait.Duration(count))
+			wait.Reset(nextWait.Duration(count))
 		}
 
 		count++
 		if count > 10 {
-			log.Errorf("cluster: reconnect to remote perr failed more than 10. %v", err)
+			//log.Errorf("cluster: reconnect to remote peer failed more than 10. %v", err)
 		}
 
 		select {
-		case <-reconnTimer.C:
+		case <-wait.C:
 			// Wait for timer to try to reconnect again. Do nothing if the timer is inactive.
 		case <-n.done:
 			// Shutting down
-			log.Infof("cluster: node '%s' shutdown started", n.name)
-			reconnTimer.Stop()
+			log.Infof("cluster: peer '%s' shutdown started", n.name)
+			wait.Stop()
 			if n.endpoint != nil {
 				n.endpoint.Close()
 			}
@@ -95,7 +116,7 @@ func (n *peer) reconnect() {
 			n.connected = false
 			n.reconnecting = false
 			n.lock.Unlock()
-			log.Infof("cluster: node '%s' shut down completed", n.name)
+			log.Infof("cluster: peer '%s' shut down completed", n.name)
 			return
 		}
 	}
@@ -116,7 +137,7 @@ func (n *peer) call(serviceMethod string, req, resp interface{}) error {
 	n.lock.RLock()
 	if !n.connected {
 		n.lock.RUnlock()
-		return errors.New("cluster: node '" + n.name + "' not connected")
+		return errors.New("cluster: peer '" + n.name + "' not connected")
 	}
 	n.lock.RUnlock()
 
@@ -148,7 +169,7 @@ func (n *peer) callAsync(serviceMethod string, req, resp interface{}, done chan 
 			ServiceMethod: serviceMethod,
 			Args:          req,
 			Reply:         resp,
-			Error:         errors.New("cluster: node '" + n.name + "' not connected"),
+			Error:         errors.New("cluster: peer '" + n.name + "' not connected"),
 			Done:          done,
 		}
 
