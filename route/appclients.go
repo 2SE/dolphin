@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/2se/dolphin/common/timer"
+	"github.com/2se/dolphin/pb"
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -26,7 +27,7 @@ func (p *resourcesPool) TryAddClient(address string) error {
 	if err != nil {
 		return fmt.Errorf("did not connect: %v", err)
 	}
-	appCli := NewAppServeClient(conn)
+	appCli := pb.NewAppServeClient(conn)
 	p.clients[address] = appCli
 	return ErrGprcServerConnFailed
 }
@@ -35,11 +36,11 @@ func (p *resourcesPool) RemoveClient(address string) {
 	delete(p.clients, address)
 }
 
-func (p *resourcesPool) callAppAction(address string, request proto.Message) (*ServerComResponse, error) {
+func (p *resourcesPool) callAppAction(address string, request proto.Message) (*pb.ServerComResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
 	//重试的机制 https://github.com/grpc/grpc/blob/master/doc/connection-backoff.md
-	resp, err := p.clients[address].Request(ctx, request.(*ClientComRequest))
+	resp, err := p.clients[address].Request(ctx, request.(*pb.ClientComRequest))
 	if err != nil {
 		st := status.Convert(err)
 		//todo log

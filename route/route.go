@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/2se/dolphin/common"
 	"github.com/2se/dolphin/config"
+	"github.com/2se/dolphin/pb"
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 	"sync"
@@ -72,7 +73,7 @@ type resourcesPool struct {
 	connErr map[string]int16  //key address val:count the err count in a period time for client send request
 
 	topicPeers map[common.MethodPath]*PeersRoute
-	clients    map[string]AppServeClient //key:address val:grpcClient (only save local app)
+	clients    map[string]*pb.AppServeClient //key:address val:grpcClient (only save local app)
 	ring       map[common.MethodPath]*ringhash.Ring
 	recycle    time.Duration
 	threshold  int16

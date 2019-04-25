@@ -17,7 +17,7 @@ import (
 	"syscall"
 )
 
-// /go:generate protoc --proto_path=../../eventbus/ --go_out=plugins=grpc:../../eventbus/ ../../eventbus/service.proto
+//go:generate protoc --proto_path=../../pb/ --go_out=plugins=grpc:../../pb/ ../../pb/appserve.proto
 
 func main() {
 	log.SetFormatter(&log.TextFormatter{ForceColors: true, FullTimestamp: true})
