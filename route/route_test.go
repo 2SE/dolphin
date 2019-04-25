@@ -3,6 +3,7 @@ package route
 import (
 	"fmt"
 	"github.com/2se/dolphin/common"
+	"github.com/2se/dolphin/config"
 	"sort"
 	"testing"
 
@@ -33,7 +34,11 @@ func TestPeersRoute_Sort(t *testing.T) {
 }
 
 func TestResourcesPool_RegiserSubResources(t *testing.T) {
-	route := InitRoute("node1")
+	route := InitRoute("node1", &config.RouteConfig{
+		Recycle:   10,
+		Threshold: 10,
+		Timeout:   60,
+	})
 	route.Register([]common.MethodPath{
 		common.NewMethodPath("1", "2", "3"),
 		common.NewMethodPath("1", "3", "3"),

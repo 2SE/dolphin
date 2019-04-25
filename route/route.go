@@ -3,8 +3,11 @@ package route
 import (
 	"errors"
 	"github.com/2se/dolphin/common"
+	"github.com/2se/dolphin/config"
 	"github.com/golang/protobuf/proto"
+	log "github.com/sirupsen/logrus"
 	"sync"
+	"time"
 
 	"sort"
 
@@ -21,6 +24,8 @@ var (
 	ErrClientExists         = errors.New("route: client exists")
 	ErrAddressNotFound      = errors.New("route: address not fount")
 	ErrGprcServerConnFailed = errors.New("route: connection to grpc server failed")
+
+	logFieldKey = "route"
 )
 
 type Router interface {
@@ -47,12 +52,15 @@ func GetRouterInstance() Router {
 
 // 初始化本地route
 // peer 本地cluster 编号
-func InitRoute(peer string) Router {
+func InitRoute(peer string, cnf *config.RouteConfig) Router {
 	r = &resourcesPool{
 		curPeer:    peer,
 		topicPeers: make(map[common.MethodPath]*PeersRoute),
 		ring:       make(map[common.MethodPath]*ringhash.Ring),
 		appAddr:    make(map[string]string),
+		recycle:    cnf.Recycle.Duration,
+		threshold:  cnf.Threshold,
+		timeout:    cnf.Timeout.Duration,
 	}
 	return r
 }
@@ -66,6 +74,9 @@ type resourcesPool struct {
 	topicPeers map[common.MethodPath]*PeersRoute
 	clients    map[string]AppServeClient //key:address val:grpcClient (only save local app)
 	ring       map[common.MethodPath]*ringhash.Ring
+	recycle    time.Duration
+	threshold  int16
+	timeout    time.Duration
 	m          sync.RWMutex
 }
 
@@ -138,6 +149,9 @@ func (s *resourcesPool) Register(mps []common.MethodPath, appName, peerName, add
 		peerName = s.curPeer
 		err := s.TryAddClient(address)
 		if err != nil {
+			log.WithFields(log.Fields{
+				logFieldKey: "Register",
+			}).Errorln(err)
 			return err
 		}
 		s.addrApp[address] = appName
@@ -187,6 +201,9 @@ func (s *resourcesPool) UnRegisterApp(appName string) {
 func (s *resourcesPool) RouteIn(mp common.MethodPath, id string) (pr PeerRoute, redirect bool, err error) {
 	psr, ok := s.topicPeers[mp]
 	if !ok {
+		log.WithFields(log.Fields{
+			logFieldKey: "RouteIn",
+		}).Warnf("methodpath %s not found\n", mp.String())
 		return PeerRoute{}, false, ErrMethodPathNotFound
 	}
 	if _, ok := s.ring[mp]; !ok {
@@ -201,17 +218,23 @@ func (s *resourcesPool) RouteIn(mp common.MethodPath, id string) (pr PeerRoute, 
 	peer := s.ring[mp].Get(id)
 	pa, err := psr.findOne(peer)
 	if err != nil {
+		log.WithFields(log.Fields{
+			logFieldKey: "RouteIn",
+		}).Warnf("peer %s not exists\n", peer)
 		return PeerRoute{}, false, err
 	}
 	if peer != s.curPeer {
 		redirect = true
 	}
-	return pa, redirect, err
+	return pa, redirect, nil
 }
 
 func (s *resourcesPool) RouteOut(appName string, request proto.Message) (response proto.Message, err error) {
 	addr, ok := s.appAddr[appName]
 	if !ok {
+		log.WithFields(log.Fields{
+			logFieldKey: "RouteOut",
+		}).Warnf("appName %s not found\n", appName)
 		return nil, ErrAddressNotFound
 	}
 	return s.callAppAction(addr, request)

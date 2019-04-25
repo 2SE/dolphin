@@ -82,3 +82,26 @@ server_addr = "127.0.0.1:30060"
 enabled = false
 name = "rate limit"
 server_addr = "127.0.0.1:30061"
+
+[route]
+# appclient请求错误计数周期
+recycle = "10s"
+# recycel周期内的错误数阙值
+threshold = 5
+# appclient请求超时时间
+timeout = "60s"
+
+
+[[kafkas]]
+brokers = ["127.0.0.1:9092"]
+topic = "test"
+offset = 0
+groupId = ""
+partition = 0
+minBytes = 1000
+maxBytes = 1000000
+maxWait = "2s"
+
+
+
+

@@ -3,10 +3,13 @@ package outbox
 import (
 	"context"
 	"fmt"
+	"github.com/2se/dolphin/config"
 	"github.com/2se/dolphin/event"
 	"github.com/segmentio/kafka-go"
+	log "github.com/sirupsen/logrus"
 )
 
+/*
 func getKafkaReader(kafkaURL, topic, groupID string, partition int) *kafka.Reader {
 	return kafka.NewReader(kafka.ReaderConfig{
 		Brokers:   []string{kafkaURL},
@@ -16,7 +19,7 @@ func getKafkaReader(kafkaURL, topic, groupID string, partition int) *kafka.Reade
 		MinBytes:  10e3, // 10KB
 		MaxBytes:  10e6, // 10MB
 	})
-}
+}*/
 
 type KV struct {
 	Key []byte
@@ -32,25 +35,39 @@ func (kv *KV) GetMetaData() []byte {
 func (kv *KV) GetData() []byte {
 	return kv.Val
 }
-
-func consumerTopic(kafkaURL, topic, groupID string, partition int, offset int64, pusher event.Emitter) error {
-	reader := getKafkaReader(kafkaURL, topic, groupID, partition)
-	defer reader.Close()
-	err := reader.SetOffset(offset)
-	if err != nil {
-		return err
+func ConsumersInit(cnfs []*config.KafkaConfig, pusher event.Emitter) {
+	for _, v := range cnfs {
+		go func(cnf *config.KafkaConfig) {
+			reader := kafka.NewReader(kafka.ReaderConfig{
+				Brokers:   cnf.Brokers,
+				GroupID:   cnf.GroupID,
+				Topic:     cnf.Topic,
+				Partition: cnf.Partition,
+				MinBytes:  cnf.MinBytes,
+				MaxBytes:  cnf.MaxBytes, // 10MB
+				MaxWait:   cnf.MaxWait.Duration,
+			})
+			err := reader.SetOffset(cnf.Offset)
+			if err != nil {
+				panic(fmt.Errorf("kafka topic %s consumer err:%s", cnf.Topic, err.Error()))
+			}
+			consumerTopic(reader, pusher)
+		}(v)
 	}
-	fmt.Println("start consuming ... !!")
+}
+
+func consumerTopic(reader *kafka.Reader, pusher event.Emitter) error {
 	for {
 		m, err := reader.ReadMessage(context.Background())
 		if err != nil {
-			fmt.Println("err :", err)
+			log.WithFields(log.Fields{
+				"outbox": "consumerTopic",
+			}).Errorln(err.Error())
 			continue
 		}
 		pusher.Emit(&KV{
 			Key: m.Key,
 			Val: m.Value,
 		})
-		fmt.Printf("message at topic:%v partition:%v offset:%v	%s = %s\n", m.Topic, m.Partition, m.Offset, string(m.Key), string(m.Value))
 	}
 }

@@ -3,6 +3,7 @@ package outbox
 import (
 	"fmt"
 	"github.com/2se/dolphin/event"
+	"github.com/segmentio/kafka-go"
 	"testing"
 )
 
@@ -20,8 +21,11 @@ func TestConsumerEvent(t *testing.T) {
 	emitter := event.NewEmitter(2)
 	_, eve := emitter.Subscribe(tpc)
 	go func() {
-		consumerTopic("www.rennbon.com:9092", "ttt1", "", 0, 3, emitter)
-
+		reader := kafka.NewReader(kafka.ReaderConfig{
+			Brokers: []string{"www.rennbon.com:9092"},
+			Topic:   "ttt1",
+		})
+		consumerTopic(reader, emitter)
 	}()
 	for c := range eve {
 		fmt.Printf("key:%s val:%s\n", c.GetMetaData(), c.GetData())

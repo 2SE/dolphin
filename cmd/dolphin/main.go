@@ -3,6 +3,9 @@ package main
 import (
 	"github.com/2se/dolphin/cluster"
 	"github.com/2se/dolphin/config"
+	"github.com/2se/dolphin/event"
+	"github.com/2se/dolphin/outbox"
+	"github.com/2se/dolphin/route"
 	"github.com/2se/dolphin/ws"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/urfave/cli.v1"
@@ -77,7 +80,13 @@ func run(cliCtx *cli.Context) error {
 	//cluster.Start()
 	//defer cluster.Shutdown()
 
-	cluster.Route()
+	//cluster.Route()
+	//init route
+	route.InitRoute(cluster.Name(), cnf.RouteCnf)
+	//init event emitter
+	emiter := event.NewEmitter(256)
+	//init kafka consumers to push message into event
+	outbox.ConsumersInit(cnf.KafkaCnf, emiter)
 
 	ws.Init(cnf.WsCnf)
 	if err = ws.ListenAndServe(signalHandler()); err != nil {

@@ -8,8 +8,9 @@ import (
 type Config struct {
 	WsCnf      *WebsocketConfig `toml:"websocket"`
 	ClusterCnf *ClusterConfig   `toml:"cluster"`
-	KafkaCnf   *KafkaConfig     `toml:"kafka"`
+	KafkaCnf   []*KafkaConfig   `toml:"kafkas"`
 	PluginsCnf []*PluginConfig  `toml:"plugins"`
+	RouteCnf   *RouteConfig     `toml:"route""`
 }
 
 type ClusterConfig struct {
@@ -65,18 +66,26 @@ type WsAutoCertConfig struct {
 }
 
 type KafkaConfig struct {
-	Brokers      []string `toml:"brokers"`
-	WaitWindow   duration `toml:"waitWindow"`
-	ConsumeGroup string   `toml:"consumeGroup"`
-	MinBytes     int      `toml:"minBytes"`
-	MaxBytes     int      `toml:"maxBytes"`
-	StartOffset  int      `toml:"startOffset"`
+	Brokers   []string `toml:"brokers"`
+	Topic     string   `toml:"topic"`
+	Offset    int64    `toml:"offset"`
+	GroupID   string   `toml:"groupId"`
+	Partition int      `toml:"partition"`
+	MinBytes  int      `toml:"minBytes"`
+	MaxBytes  int      `toml:"maxBytes"`
+	MaxWait   duration `toml:"maxWait"`
 }
 
 type PluginConfig struct {
 	Enabled    bool   `toml:"enabled"`
 	Name       string `toml:"name"`
 	ServerAddr string `toml:"server_addr"`
+}
+
+type RouteConfig struct {
+	Recycle   duration `toml:"recycle"`
+	Threshold int16    `toml:"threshold"`
+	Timeout   duration `toml:"timeout"`
 }
 
 func (cnf *Config) String() string {
@@ -96,14 +105,16 @@ func (cnf *Config) GetClusterConfig() *ClusterConfig {
 	return cnf.ClusterCnf
 }
 
-func (cnf *Config) GetKafkaConfig() *KafkaConfig {
+func (cnf *Config) GetKafkaConfig() []*KafkaConfig {
 	return cnf.KafkaCnf
 }
 
 func (cnf *Config) GetPluginConfigs() []*PluginConfig {
 	return cnf.PluginsCnf
 }
-
+func (cnf *Config) GetRouteConfig() *RouteConfig {
+	return cnf.RouteCnf
+}
 func (wscnf *WebsocketConfig) String() string {
 	return fmt.Sprintf("[websocket]\nlisten: %s | read buffer size: %d | write buffer size: %d | expvar: %s\n%s",
 		wscnf.Listen, wscnf.ReadBufSize, wscnf.WriteBufSize, wscnf.Expvar, wscnf.Tls)
@@ -139,9 +150,17 @@ func (ccc *ClusterConnectionConfig) String() string {
 }
 
 func (kcnf *KafkaConfig) String() string {
-	return fmt.Sprintf("\n[kafka]\nbrokers: %v\nconsume group: %s\nmin bytes: %d\nmax bytes: %d\nstart offset: %d\nwait window: %s",
-		kcnf.Brokers, kcnf.ConsumeGroup, kcnf.MinBytes,
-		kcnf.MaxBytes, kcnf.StartOffset, kcnf.WaitWindow)
+	return fmt.Sprintf("\n[kafka]\nbrokers: %v\n"+
+		"topic:%s\n"+
+		"consume group: %s\n"+
+		"partition: %d\n"+
+		"min bytes: %d\n"+
+		"max bytes: %d\n"+
+		"start offset: %d\n"+
+		"wait window: %s",
+		kcnf.Brokers, kcnf.Topic, kcnf.GroupID,
+		kcnf.Partition, kcnf.MinBytes,
+		kcnf.MaxBytes, kcnf.Offset, kcnf.MaxWait)
 }
 
 func (pcnf *PluginConfig) String() string {

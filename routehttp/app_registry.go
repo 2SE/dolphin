@@ -6,7 +6,6 @@ import (
 	"github.com/2se/dolphin/common"
 	"github.com/2se/dolphin/route"
 	"io/ioutil"
-	"log"
 	"net/http"
 )
 
@@ -50,7 +49,7 @@ func Start(address string) {
 	fmt.Println("servers start")
 	err := http.ListenAndServe(address, nil)
 	if err != nil {
-		log.Fatal("ListenAndServe: ", err)
+		panic(fmt.Errorf("ListenAndServe: ", err))
 	}
 
 }
