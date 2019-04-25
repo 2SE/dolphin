@@ -1,12 +1,17 @@
 package outbox
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/2se/dolphin/config"
 	"github.com/2se/dolphin/event"
+	"github.com/2se/dolphin/util"
 	"github.com/segmentio/kafka-go"
 	log "github.com/sirupsen/logrus"
+	"io/ioutil"
+	"strconv"
+	"time"
 )
 
 /*
@@ -36,6 +41,7 @@ func (kv *KV) GetData() []byte {
 	return kv.Val
 }
 func ConsumersInit(cnfs []*config.KafkaConfig, pusher event.Emitter) {
+	go offsetRecoder.start()
 	for _, v := range cnfs {
 		go func(cnf *config.KafkaConfig) {
 			reader := kafka.NewReader(kafka.ReaderConfig{
@@ -57,17 +63,65 @@ func ConsumersInit(cnfs []*config.KafkaConfig, pusher event.Emitter) {
 }
 
 func consumerTopic(reader *kafka.Reader, pusher event.Emitter) error {
+	var (
+		logSend = offsetRecoder.sender()
+		m       kafka.Message
+		err     error
+	)
 	for {
-		m, err := reader.ReadMessage(context.Background())
+		m, err = reader.ReadMessage(context.Background())
 		if err != nil {
 			log.WithFields(log.Fields{
 				"outbox": "consumerTopic",
 			}).Errorln(err.Error())
 			continue
 		}
+		logSend <- &m
 		pusher.Emit(&KV{
 			Key: m.Key,
 			Val: m.Value,
 		})
+	}
+}
+
+type OffsetRecoder struct {
+	topicOffset map[string]int64
+	receive     chan *kafka.Message
+}
+
+var (
+	offsetRecoder = &OffsetRecoder{
+		topicOffset: make(map[string]int64),
+		receive:     make(chan *kafka.Message, 64),
+	}
+	tick = util.NewTimingWheel(time.Second, 2)
+)
+
+func (o *OffsetRecoder) sender() chan<- *kafka.Message {
+	return o.receive
+}
+func (o *OffsetRecoder) start() {
+	go func() {
+		for msg := range o.receive {
+			o.topicOffset[msg.Topic] = msg.Offset
+		}
+	}()
+	go o.logWrite()
+}
+
+func (o *OffsetRecoder) logWrite() {
+	buff := bytes.NewBuffer(nil)
+	for {
+		select {
+		case <-tick.After(time.Second):
+			for k, v := range o.topicOffset {
+				buff.WriteString(k)
+				buff.WriteRune(':')
+				buff.WriteString(strconv.FormatInt(v, 10))
+				buff.WriteString("\n")
+			}
+			ioutil.WriteFile("./kfk.log", buff.Bytes(), 0644)
+			buff.Reset()
+		}
 	}
 }

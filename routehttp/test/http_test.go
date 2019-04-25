@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/2se/dolphin/route"
 	"github.com/2se/dolphin/routehttp"
 	"io/ioutil"
 	"net/http"
@@ -12,7 +11,7 @@ import (
 )
 
 func TestRouteHttpStart(t *testing.T) {
-	route.InitRoute("123")
+	//route.InitRoute("123")
 	routehttp.Start("127.0.0.1:10086")
 }
 

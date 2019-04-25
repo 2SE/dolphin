@@ -6,11 +6,12 @@ import (
 )
 
 type Config struct {
-	WsCnf      *WebsocketConfig `toml:"websocket"`
-	ClusterCnf *ClusterConfig   `toml:"cluster"`
-	KafkaCnf   []*KafkaConfig   `toml:"kafkas"`
-	PluginsCnf []*PluginConfig  `toml:"plugins"`
-	RouteCnf   *RouteConfig     `toml:"route""`
+	WsCnf        *WebsocketConfig `toml:"websocket"`
+	ClusterCnf   *ClusterConfig   `toml:"cluster"`
+	KafkaCnf     []*KafkaConfig   `toml:"kafkas"`
+	PluginsCnf   []*PluginConfig  `toml:"plugins"`
+	RouteCnf     *RouteConfig     `toml:"route""`
+	RouteHttpCnf *RouteHttpConfig `toml:"routehttp"`
 }
 
 type ClusterConfig struct {
@@ -81,7 +82,9 @@ type PluginConfig struct {
 	Name       string `toml:"name"`
 	ServerAddr string `toml:"server_addr"`
 }
-
+type RouteHttpConfig struct {
+	Address string `toml:"address"`
+}
 type RouteConfig struct {
 	Recycle   duration `toml:"recycle"`
 	Threshold int16    `toml:"threshold"`
@@ -115,6 +118,10 @@ func (cnf *Config) GetPluginConfigs() []*PluginConfig {
 func (cnf *Config) GetRouteConfig() *RouteConfig {
 	return cnf.RouteCnf
 }
+func (cnf *Config) GetRouteHttpConfig() *RouteHttpConfig {
+	return cnf.RouteHttpCnf
+}
+
 func (wscnf *WebsocketConfig) String() string {
 	return fmt.Sprintf("[websocket]\nlisten: %s | read buffer size: %d | write buffer size: %d | expvar: %s\n%s",
 		wscnf.Listen, wscnf.ReadBufSize, wscnf.WriteBufSize, wscnf.Expvar, wscnf.Tls)

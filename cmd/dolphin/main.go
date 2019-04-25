@@ -6,6 +6,7 @@ import (
 	"github.com/2se/dolphin/event"
 	"github.com/2se/dolphin/outbox"
 	"github.com/2se/dolphin/route"
+	"github.com/2se/dolphin/routehttp"
 	"github.com/2se/dolphin/ws"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/urfave/cli.v1"
@@ -16,7 +17,7 @@ import (
 	"syscall"
 )
 
-//go:generate protoc --proto_path=../../eventbus/ --go_out=plugins=grpc:../../eventbus/ ../../eventbus/service.proto
+// /go:generate protoc --proto_path=../../eventbus/ --go_out=plugins=grpc:../../eventbus/ ../../eventbus/service.proto
 
 func main() {
 	log.SetFormatter(&log.TextFormatter{ForceColors: true, FullTimestamp: true})
@@ -87,7 +88,7 @@ func run(cliCtx *cli.Context) error {
 	emiter := event.NewEmitter(256)
 	//init kafka consumers to push message into event
 	outbox.ConsumersInit(cnf.KafkaCnf, emiter)
-
+	go routehttp.Start(cnf.RouteHttpCnf.Address)
 	ws.Init(cnf.WsCnf)
 	if err = ws.ListenAndServe(signalHandler()); err != nil {
 		log.Errorf("%v\n", err)

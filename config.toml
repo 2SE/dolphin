@@ -91,6 +91,9 @@ threshold = 5
 # appclient请求超时时间
 timeout = "60s"
 
+[routehttp]
+address = "127.0.0.1:9527"
+
 
 [[kafkas]]
 brokers = ["127.0.0.1:9092"]

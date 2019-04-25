@@ -46,10 +46,8 @@ func RegistryHandler(w http.ResponseWriter, r *http.Request) {
 
 func Start(address string) {
 	http.HandleFunc("/", RegistryHandler)
-	fmt.Println("servers start")
 	err := http.ListenAndServe(address, nil)
 	if err != nil {
 		panic(fmt.Errorf("ListenAndServe: ", err))
 	}
-
 }
