@@ -23,12 +23,12 @@ type WebsocketEndpoint struct {
 }
 
 func Init(cnf *config.WebsocketConfig) {
-	W = NewWsServer()
-	go W.Start()
-	go W.HandleHeartBeat(HeartBeatEquation)
+	w := NewWsServer()
+	go w.Start()
+	go w.HandleHeartBeat(HeartBeatEquation)
 	// Set up HTTP server. Must use non-default mux because of expvar.
 	mux := http.NewServeMux()
-	mux.HandleFunc("/ws", serveWebsocket)
+	mux.HandleFunc("/ws", w.serveWebsocket)
 	mux.HandleFunc("/", dhttp.Serve404)
 
 	server := &http.Server{
@@ -112,7 +112,7 @@ Loop:
 	return nil
 }
 
-func serveWebsocket(w http.ResponseWriter, req *http.Request) {
+func (wss *WsServer)serveWebsocket(w http.ResponseWriter, req *http.Request) {
 	conn, _, _, err := ws.UpgradeHTTP(req, w)
 	if err != nil {
 		log.Errorf("%v", err)
@@ -125,20 +125,19 @@ func serveWebsocket(w http.ResponseWriter, req *http.Request) {
 			if err != nil {
 				// todo handle error
 				log.Error("Ws: read client data error", err)
+				return
 			}
-			log.Printf("got msg from [%s], message is : %v", string(msg))
+			defer conn.Close()
+			log.Println("Ws: got msg ", string(msg))
 
 			switch opCode {
 			case ws.OpPing:
 				wsutil.WriteServerMessage(conn, ws.OpPong, nil)
-				clientID := W.Conns[&conn]
-				W.Clients[clientID].Timestamp = time.Now().UnixNano() / 1e6
+				clientID := wss.Conns[&conn]
+				wss.Clients[clientID].Timestamp = time.Now().UnixNano() / 1e6
 			case ws.OpClose:
-				conn.Close()
 			default:
-				clientID := W.Conns[&conn]
-				W.Clients[clientID].Timestamp = time.Now().UnixNano() / 1e6
-				W.handleClientData(&conn, msg)
+				wss.handleClientData(&conn, msg)
 			}
 		}
 	}()

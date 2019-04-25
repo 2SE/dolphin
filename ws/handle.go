@@ -6,17 +6,14 @@ import (
 	"github.com/2se/dolphin/event"
 	"github.com/2se/dolphin/route"
 	"github.com/golang/protobuf/proto"
-	"github.com/gorilla/schema"
 	log "github.com/sirupsen/logrus"
 	"net"
-	"net/http"
 	"strconv"
 	"sync"
 	"time"
 )
 
 var (
-	W       *WsServer
 	Emmiter = event.NewEmitter(2)
 	wg      = new(sync.WaitGroup)
 )
@@ -24,25 +21,25 @@ var (
 const HeartBeatEquation = 3000
 
 type SubscribeTopicer struct {
-	*route.ClientComMeta
+	*route.ClientComRequest
 }
 
 func (s *SubscribeTopicer) GetTopic() string {
-	return s.Key + "_" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	return s.Meta.Key + "_" + strconv.FormatInt(time.Now().UnixNano(), 10)
 }
 
-func ParamBind(obj interface{}, r *http.Request) error {
-	if err := r.ParseForm(); err != nil {
-		return err
-		// Handle error
-	}
-	if err := schema.NewDecoder().Decode(obj, r.Form); err != nil {
-		return err
-		// Handle error
-	}
-
-	return nil
-}
+//func ParamBind(obj interface{}, r *http.Request) error {
+//	if err := r.ParseForm(); err != nil {
+//		return err
+//		// Handle error
+//	}
+//	if err := schema.NewDecoder().Decode(obj, r.Form); err != nil {
+//		return err
+//		// Handle error
+//	}
+//
+//	return nil
+//}
 
 func (w *WsServer) handleClientData(conn *net.Conn, msg []byte) {
 	var cli = &Client{conn: conn}
@@ -60,11 +57,12 @@ func (w *WsServer) handleClientData(conn *net.Conn, msg []byte) {
 
 	log.Println("unmashal msg", req)
 
-	wssub := &SubscribeTopicer{req.Meta}
+	wssub := &SubscribeTopicer{req}
 	if req.Meta.Key != "" {
+		log.Printf("Ws: client [%s] subscribe...", cli.ID)
 		// subscribe
 		subPid, event := Emmiter.Subscribe(wssub)
-		log.Println("Ws: subscribe success", subPid)
+		log.Printf("Ws: client [%s] subscribe success, subPid is [%s]", cli.ID, subPid)
 		subscribe := &Subscribe{event, nil, subPid, req.Meta.Key, cli}
 		w.Subscribe <- subscribe
 	} else {

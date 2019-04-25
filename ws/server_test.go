@@ -21,9 +21,21 @@ func TestListenAndServe(t *testing.T) {
 
 	Init(cfg)
 	// client
-	metaData := &route.ClientComMeta{Resource: "user", Revision: "v1", Action: "getInfo", Subscription: false, Key: "subscirbe_key", Uuid: "test_uuid"}
-	metaDataByte, _ := proto.Marshal(metaData)
-	go client(metaDataByte)
+	reqData := &route.ClientComRequest{
+		Id: "1",
+		Qid: "test_client_id",
+		TraceId: "test_trace_id",
+		Meta: &route.ClientComMeta{
+			Resource: "user",
+			Revision: "v1",
+			Action: "getInfo",
+			Subscription: false,
+			Key: "test_subscribe_key",
+			Uuid: "test_uuid",
+		},
+	}
+	reqDataByte, _ := proto.Marshal(reqData)
+	go client(reqDataByte)
 	ListenAndServe(signalHandler())
 }
 
@@ -49,7 +61,8 @@ func client(data []byte) {
 	for {
 		dialer := ws.DefaultDialer
 
-		conn, _, _, _ = dialer.Dial(context.Background(), "ws://127.0.0.1:8081/ws?client_id=test_client_id")
+		conn, _, _, _ = dialer.Dial(context.Background(), "ws://127.0.0.1:8081/ws")
+
 		if conn != nil {
 			log.Println("connect success to server:", "127.0.0.1:8081")
 			break
