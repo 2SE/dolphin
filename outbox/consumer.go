@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/2se/dolphin/common/timer"
 	"github.com/2se/dolphin/config"
 	"github.com/2se/dolphin/event"
-	"github.com/2se/dolphin/util"
 	"github.com/segmentio/kafka-go"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
@@ -94,7 +94,7 @@ var (
 		topicOffset: make(map[string]int64),
 		receive:     make(chan *kafka.Message, 64),
 	}
-	tick = util.NewTimingWheel(time.Second, 2)
+	tick = timer.NewTimingWheel(time.Second, 2)
 )
 
 func (o *OffsetRecoder) sender() chan<- *kafka.Message {

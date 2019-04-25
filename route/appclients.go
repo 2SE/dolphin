@@ -3,7 +3,7 @@ package route
 import (
 	"context"
 	"fmt"
-	"github.com/2se/dolphin/util"
+	"github.com/2se/dolphin/common/timer"
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	tick = util.NewTimingWheel(time.Second, 30)
+	tick = timer.NewTimingWheel(time.Second, 30)
 )
 
 func (p *resourcesPool) TryAddClient(address string) error {
