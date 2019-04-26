@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"encoding/gob"
 	"errors"
+	"github.com/2se/dolphin/common"
 	"github.com/2se/dolphin/config"
-	"github.com/2se/dolphin/route"
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 	"net"
@@ -32,40 +32,144 @@ var (
 	PartitionedErr     = errors.New("cluster partitioned")
 	PeerUnavailableErr = errors.New("peer unavailable")
 
-	// gwCluster 表示集群中的本节点。如果gwCluster为nil，表示当前以单节点运行，而非集群模式。
 	gwCluster *Cluster
 
 	// peerConnCnf 集群内节点之间连接的配置
 	// 连接配置需要在集群模块初始化时进行初始化
 	// 如果该配置为nil，与连接配置相关的功能将使用默认参数
 	peerConnCnf *config.ClusterConnectionConfig
-	gwRouter    route.Router
 )
+
+type delegatedCluster struct {
+	router common.Router
+}
+
+func (d *delegatedCluster) SetRouter(router common.Router) {
+	d.router = router
+}
+
+func (d *delegatedCluster) Name() string {
+	if gwCluster != nil {
+		return gwCluster.thisName
+	}
+
+	return LocalPeer
+}
+
+// Partitioned checks if the cluster is partitioned due to network or other failure and if the
+// current peer is a part of the smaller partition.
+func (d *delegatedCluster) Partitioned() bool {
+	if gwCluster == nil || gwCluster.fo == nil {
+		// Cluster not initialized or failover disabled therefore not partitioned.
+		return false
+	}
+
+	return (len(gwCluster.peers)+1)/2 >= len(gwCluster.fo.activePeers)
+}
+
+// Recv call remote Cluster.Recv
+// The request from remote peer`s broadcast.
+func (d *delegatedCluster) Notify(mps []common.MethodPath, pr common.PeerRouter) {
+	if gwCluster == nil {
+		return
+	}
+
+	if d.Partitioned() {
+		log.Warnf("Notify: %v", PartitionedErr)
+		return
+	}
+
+	req := reqPool.Get().(*RequestPkt)
+	req.PeerName = gwCluster.thisName
+	//req.Pkt = message
+
+	peerCount := len(gwCluster.peers)
+	done := make(chan *rpc.Call, peerCount)
+	for _, peer := range gwCluster.peers {
+		resp := &RespPkt{}
+		peer.callAsync("Cluster.Report", req, resp, done)
+	}
+	reqPool.Put(req)
+
+	// TODO change timeout time
+	timeout := time.NewTimer(defaultTimeout)
+	for i := 0; i < peerCount; i++ {
+		select {
+		case call := <-done:
+			if call.Error != nil {
+				log.Warnf("cluster: call remote method failed. cause: %v", call.Error)
+			}
+		case <-timeout.C:
+			i = peerCount
+		}
+	}
+
+	if !timeout.Stop() {
+		<-timeout.C
+	}
+}
+
+// Request call remote Cluster.Request
+// the request from client
+// it will choose one peer to send request and reecived call back response
+func (d *delegatedCluster) Request(value common.PeerRouter, message proto.Message) (response proto.Message, err error) {
+	if gwCluster == nil {
+		return d.router.RouteOut(value, message)
+	}
+
+	if d.Partitioned() {
+		return nil, PartitionedErr
+	}
+
+	if peer, ok := gwCluster.peers[value.PeerName()]; ok {
+		req := reqPool.Get().(*RequestPkt)
+		defer reqPool.Put(req)
+
+		req.PeerName = gwCluster.thisName
+		req.AppName = value.AppName()
+		req.Signature = gwCluster.signature
+		req.Pkt = message
+
+		resp := respPool.Get().(*RespPkt)
+		defer respPool.Put(resp)
+		if err = peer.call("Cluster.Invoke", req, resp); err != nil {
+			return nil, err
+		}
+
+		response = resp.Pkt
+		return
+	}
+
+	return nil, PeerUnavailableErr
+}
 
 // Init 初始化集群，返回本节点在集群中的名称
 // 如果是单实例模式，节点名称为local
 // 如果是集群模式，节点名称为配置文件中定义的本节点的名称
 // 如果未传入配置文件，返回错误，节点名称为空字符串
-func Init(cnf *config.ClusterConfig) (peerName string, err error) {
+func Init(cnf *config.ClusterConfig) (localCluster common.LocalCluster, err error) {
 	log.Debug("cluster: starting init")
 	if cnf == nil {
 		log.Errorf("cluster: %s", NoConfigErr)
-		return "", NoConfigErr
+		return nil, NoConfigErr
 	}
 
 	// Name of the current peer is not specified - disable clustering
 	if cnf.Self == "" {
 		log.Debug("cluster: config with a singleton mode.")
-		return LocalPeer, nil
+		localCluster = &delegatedCluster{}
+		return
 	}
 
 	gwCluster = &Cluster{
 		thisName: cnf.Self,
 		peers:    make(map[string]*peer),
+		delegate: &delegatedCluster{},
 	}
-	peerConnCnf = cnf.Connection
-	log.WithField("peer config", peerConnCnf).Debug("cluster: peer config check")
 
+	peerConnCnf = cnf.Connection
+
+	log.WithField("peer config", peerConnCnf).Debug("cluster: peer config check")
 	var peerNames []string
 	for _, host := range cnf.Nodes {
 		peerNames = append(peerNames, host.Name)
@@ -85,25 +189,29 @@ func Init(cnf *config.ClusterConfig) (peerName string, err error) {
 
 	if len(gwCluster.peers) == 0 {
 		log.Error("cluster: no configuration for cluster")
-		return "", NoPeersErr
+		return nil, NoPeersErr
 	}
 
 	if !gwCluster.failoverInit(cnf.Failover) {
 		gwCluster.checkPeers(true, nil)
 	}
+
 	log.Debug("cluster: cluster inited")
-	return gwCluster.thisName, nil
+	return gwCluster.delegate, nil
 }
 
-func Start(router route.Router) {
+func Start(router common.Router) {
 	log.Debug("cluster: starting now...")
-
-	gwRouter = router
 	if gwCluster == nil {
 		log.Info("cluster: runing in singleton mode")
 		return
 	}
 
+	if router == nil {
+		log.Fatalf("cluster: no router")
+	}
+
+	gwCluster.delegate.SetRouter(router)
 	addr, err := net.ResolveTCPAddr(tcpNetwork, gwCluster.listenOn)
 	if err != nil {
 		// 启动失败，打印日志并退出
@@ -119,8 +227,8 @@ func Start(router route.Router) {
 	for _, n := range gwCluster.peers {
 		go n.reconnect()
 	}
-	log.Debug("cluster: all remote peers connected successful")
 
+	log.Debug("cluster: all remote peers connected successful")
 	if gwCluster.fo != nil {
 		go gwCluster.run()
 	}
@@ -191,106 +299,6 @@ func Shutdown() {
 	log.Info("cluster: cluster stopped")
 }
 
-// Partitioned checks if the cluster is partitioned due to network or other failure and if the
-// current peer is a part of the smaller partition.
-func Partitioned() bool {
-	if gwCluster == nil || gwCluster.fo == nil {
-		// Cluster not initialized or failover disabled therefore not partitioned.
-		return false
-	}
-
-	return (len(gwCluster.peers)+1)/2 >= len(gwCluster.fo.activePeers)
-}
-
-func Name() string {
-	if gwCluster != nil {
-		return gwCluster.thisName
-	}
-
-	return LocalPeer
-}
-
-// Recv call remote Cluster.Recv
-// The request from remote peer`s broadcast.
-func Notify(message proto.Message) {
-	if gwCluster != nil {
-		return
-	}
-
-	if Partitioned() {
-		log.Warnf("Notify: %v", PartitionedErr)
-		return
-	}
-
-	req := reqPool.Get().(*RequestPkt)
-	req.PeerName = gwCluster.thisName
-	req.Pkt = message
-
-	peerCount := len(gwCluster.peers)
-	done := make(chan *rpc.Call, peerCount)
-	for _, peer := range gwCluster.peers {
-		resp := &RespPkt{}
-		peer.callAsync("Cluster.Report", req, resp, done)
-	}
-	reqPool.Put(req)
-
-	// TODO change timeout time
-	timeout := time.NewTimer(defaultTimeout)
-	for i := 0; i < peerCount; i++ {
-		select {
-		case call := <-done:
-			if call.Error != nil {
-				log.Warnf("cluster: call remote method failed. cause: %v", call.Error)
-			}
-		case <-timeout.C:
-			i = peerCount
-		}
-	}
-
-	if !timeout.Stop() {
-		<-timeout.C
-	}
-}
-
-type routeInfo interface {
-	PeerName() string
-	AppName() string
-}
-
-// Request call remote Cluster.Request
-// the request from client
-// it will choose one peer to send request and reecived call back response
-func Request(value routeInfo, message proto.Message) (response proto.Message, err error) {
-	if gwCluster != nil {
-		return gwRouter.RouteOut(value.AppName(), message)
-	}
-
-	if Partitioned() {
-		return nil, PartitionedErr
-	}
-
-	if peer, ok := gwCluster.peers[value.PeerName()]; ok {
-		req := reqPool.Get().(*RequestPkt)
-		defer reqPool.Put(req)
-
-		req.PeerName = gwCluster.thisName
-		req.AppName = value.AppName()
-		req.Signature = gwCluster.signature
-		req.Pkt = message
-
-		resp := respPool.Get().(*RespPkt)
-		defer respPool.Put(resp)
-		if err = peer.call("Cluster.Invoke", req, resp); err != nil {
-			return nil, err
-		}
-
-		response = resp.Pkt
-		return
-	}
-
-	return nil, PeerUnavailableErr
-}
-
 // 集群有两个角色一个是主节点角色，一个是从节点角色。在同一时间，集群的节点只承担一种角色
 type Cluster struct {
 	peers     map[string]*peer // 集群中其他的节点列表
@@ -299,14 +307,24 @@ type Cluster struct {
 	listenOn  string           // 本节点的集群服务地址
 	inbound   *net.TCPListener // 本节点的进群服务TCP
 	fo        *clusterFailover // Failover parameters. Could be nil if failover is not enabled
+	delegate  *delegatedCluster
 }
 
 // Invoke called by a remote peer.
 func (c *Cluster) Invoke(msg *RequestPkt, resp *RespPkt) (err error) {
 	log.Printf("cluster: Invoke request received from peer '%s'", msg.PeerName)
 
+	// the cluster peers may be in election phase
+	if msg.Signature != c.signature {
+		log.Warnf("cluster.Invoke: the cluster peers may be in election phase")
+		resp.Code = 500
+		resp.PeerValue = &PeerValue{c.thisName, c.listenOn}
+		return
+	}
+
 	var result proto.Message
-	if result, err = gwRouter.RouteOut(msg.AppName, msg.Pkt); err != nil {
+	pr := common.NewPeerRouter(msg.PeerName, msg.AppName)
+	if result, err = c.delegate.router.RouteOut(pr, msg.Pkt); err != nil {
 		log.WithError(err).Errorf("cluster: error found when remote invoke RouteOut method")
 		resp.Code = 500
 	} else {
@@ -323,8 +341,7 @@ func (c *Cluster) Invoke(msg *RequestPkt, resp *RespPkt) (err error) {
 // Called by remote peer
 func (c *Cluster) Report(msg *RespPkt, unused *bool) error {
 	log.Println("cluster: response from Master for session ", msg.PeerValue)
-	// TODO
-	return nil
+	return c.delegate.router.Register()
 }
 
 // Ping 集群内部接口，供远端主节点调用rpc.Client.Call("Cluster.Ping"...
@@ -475,6 +492,7 @@ func (c *Cluster) checkPeers(onInit bool, peerValues []*PeerValue) {
 			if !found {
 				peer.disconnect()
 				delete(c.peers, key)
+				c.delegate.router.UnRegisterPeer(peer.name)
 			}
 
 			found = false

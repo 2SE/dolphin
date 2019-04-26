@@ -3,6 +3,7 @@ package common
 import (
 	"bytes"
 	"errors"
+	"github.com/golang/protobuf/proto"
 	"sort"
 )
 
@@ -10,13 +11,40 @@ var (
 	ErrPeerNotFound = errors.New("common: peer not found")
 )
 
-const spilt = '/'
+const (
+	spilt = '/'
+)
+
+type LocalCluster interface {
+	SetRouter(Router)
+	Name() string
+	Partitioned() bool
+	Notify([]MethodPath, PeerRouter)
+	Request(PeerRouter, proto.Message) (proto.Message, error)
+}
+
+type Router interface {
+	//获取路由分流指向
+	RouteIn(mp MethodPath, id string) (pr PeerRouter, redirect bool, err error)
+	//根据peerRouter将request定向到指定Grpc服务并返回结果
+	RouteOut(pr PeerRouter, request proto.Message) (response proto.Message, err error)
+	//注册单个
+	//appName 资源服务名称
+	//peer 节点名称（空字符串为本地）
+	//address  资源服务连接地址（ps:www.example.com:8080）
+	Register(mps []MethodPath, pr PeerRouter, address string) error
+	//注销app下所有
+	UnRegisterApp(pr PeerRouter)
+	//注销peer下所有
+	UnRegisterPeer(peerName string)
+}
 
 type MethodPath interface {
 	String() string
 }
 type PeerRouter interface {
 	PeerName() string
+	SetPeerName(name string)
 	AppName() string
 	Equals(pr PeerRouter) bool
 	String() string
@@ -59,7 +87,9 @@ type peerRoute struct {
 
 func (s *peerRoute) PeerName() string {
 	return s.peer
-
+}
+func (s *peerRoute) SetPeerName(name string) {
+	s.peer = name
 }
 func (s *peerRoute) AppName() string {
 	return s.app

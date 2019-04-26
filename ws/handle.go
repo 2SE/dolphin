@@ -71,7 +71,7 @@ func (w *WsServer) handleClientData(conn *net.Conn, msg []byte) {
 		//log.Printf("Ws: got data, client is %s, data is %v", cli.ID, metaData)
 		//todo
 		mp := common.NewMethodPath(req.Meta.Revision, req.Meta.Resource, req.Meta.Action)
-		pr, redirect, err := route.GetRouterInstance().RouteIn(mp, cli.ID)
+		pr, redirect, err := route.RouteIn(mp, cli.ID)
 		if err != nil {
 
 		}
@@ -86,7 +86,7 @@ func (w *WsServer) handleClientData(conn *net.Conn, msg []byte) {
 			log.Println("Ws: got redirect request", res.String())
 
 		} else {
-			rep, err := route.GetRouterInstance().RouteOut(pr, req)
+			rep, err := route.RouteOut(pr, req)
 			if err != nil {
 				// todo handle error
 				log.Error("Ws: handleClientData router out error ", err)

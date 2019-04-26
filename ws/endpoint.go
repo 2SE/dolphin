@@ -5,8 +5,6 @@ import (
 	"crypto/tls"
 	"github.com/2se/dolphin/config"
 	dhttp "github.com/2se/dolphin/http"
-	"github.com/gobwas/ws"
-	"github.com/gobwas/ws/wsutil"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme/autocert"

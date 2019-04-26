@@ -26,33 +26,11 @@ var (
 
 const logFieldKey = "route"
 
-type Router interface {
-	//获取路由分流指向
-	RouteIn(mp common.MethodPath, id string) (pr common.PeerRouter, redirect bool, err error)
-	//根据peerRouter将request定向到指定Grpc服务并返回结果
-	RouteOut(pr common.PeerRouter, request proto.Message) (response proto.Message, err error)
-	//注册单个
-	//appName 资源服务名称
-	//peer 节点名称（空字符串为本地）
-	//address  资源服务连接地址（ps:www.example.com:8080）
-	Register(mps []common.MethodPath, appName, peerName, address string) error
-	//注销app下所有
-	UnRegisterApp(pr common.PeerRouter)
-	//注销peer下所有
-	UnRegisterPeer(peerName string)
-	//for unit test
-	listTopicPeers() map[string]*common.PeerRouters
-}
-
-func GetRouterInstance() Router {
-	return r
-}
-
 // 初始化本地route
 // peer 本地cluster 编号
-func InitRoute(peer string, cnf *config.RouteConfig) Router {
+func InitRouter(cluster common.LocalCluster, cnf *config.RouteConfig) common.Router {
 	r = &resourcesPool{
-		curPeer:    peer,
+		cluster:    cluster,
 		topicPeers: make(map[string]*common.PeerRouters),
 		ring:       make(map[string]*ringhash.Ring),
 		//appAddr:    make(map[string]string),
@@ -64,7 +42,7 @@ func InitRoute(peer string, cnf *config.RouteConfig) Router {
 }
 
 type resourcesPool struct {
-	curPeer string
+	cluster common.LocalCluster
 	pRAddr  map[string]string            //key:common.PeerRouter val:address (only save local app)
 	addrPR  map[string]common.PeerRouter //key:address val:appname
 	connErr map[string]int16             //key address val:count the err count in a period time for client send request
@@ -78,10 +56,23 @@ type resourcesPool struct {
 	m          sync.RWMutex
 }
 
-func (s *resourcesPool) Register(mps []common.MethodPath, appName, peerName, address string) error {
+func Register(mps []common.MethodPath, pr common.PeerRouter, address string) error {
+	return r.Register(mps, pr, address)
+}
+
+func RouteIn(mp common.MethodPath, id string) (pr common.PeerRouter, redirect bool, err error) {
+	return r.RouteIn(mp, id)
+}
+
+func RouteOut(pr common.PeerRouter, request proto.Message) (response proto.Message, err error) {
+	return r.RouteOut(pr, request)
+}
+
+func (s *resourcesPool) Register(mps []common.MethodPath, pr common.PeerRouter, address string) error {
 	s.m.Lock()
 	defer s.m.Unlock()
-	if peerName == s.curPeer {
+	if pr.PeerName() == "" {
+		pr.SetPeerName(s.cluster.Name())
 		err := s.TryAddClient(address)
 		if err != nil {
 			log.WithFields(log.Fields{
@@ -90,7 +81,6 @@ func (s *resourcesPool) Register(mps []common.MethodPath, appName, peerName, add
 			return err
 		}
 	}
-	pr := common.NewPeerRouter(peerName, appName)
 	s.addrPR[address] = pr
 	s.pRAddr[pr.String()] = address
 	for _, mp := range mps {
@@ -158,7 +148,7 @@ func (s *resourcesPool) RouteIn(mp common.MethodPath, id string) (pr common.Peer
 		}).Warnf("peer %s not exists\n", peer)
 		return nil, false, err
 	}
-	if peer != s.curPeer {
+	if peer != s.cluster.Name() {
 		redirect = true
 	}
 	return pa, redirect, nil
