@@ -22,13 +22,13 @@ type ClusterConfig struct {
 }
 
 type ClusterConnectionConfig struct {
-	DialTimeout       duration `toml:"dial_timeout"`
-	MaxDelay          duration `toml:"max_delay"`
-	BaseDelay         duration `toml:"base_delay"`
+	DialTimeout       Duration `toml:"dial_timeout"`
+	MaxDelay          Duration `toml:"max_delay"`
+	BaseDelay         Duration `toml:"base_delay"`
 	Factor            float64  `toml:"factor"`
 	Jitter            float64  `toml:"jitter"`
 	DisableReqTimeout bool     `toml:"disable_request_timeout"`
-	ReqWaitAfter      duration `toml:"request_wait_after"`
+	ReqWaitAfter      Duration `toml:"request_wait_after"`
 }
 
 type ClusterNodeConfig struct {
@@ -38,7 +38,7 @@ type ClusterNodeConfig struct {
 
 type ClusterFailoverConfig struct {
 	Enabled       bool     `toml:"enabled"`
-	Heartbeat     duration `toml:"heartbeat"`
+	Heartbeat     Duration `toml:"heartbeat"`
 	VoteAfter     int      `toml:"vote_after"`
 	NodeFailAfter int      `toml:"node_fail_after"`
 }
@@ -74,7 +74,7 @@ type KafkaConfig struct {
 	Partition int      `toml:"partition"`
 	MinBytes  int      `toml:"minBytes"`
 	MaxBytes  int      `toml:"maxBytes"`
-	MaxWait   duration `toml:"maxWait"`
+	MaxWait   Duration `toml:"maxWait"`
 }
 
 type PluginConfig struct {
@@ -86,9 +86,9 @@ type RouteHttpConfig struct {
 	Address string `toml:"address"`
 }
 type RouteConfig struct {
-	Recycle   duration `toml:"recycle"`
+	Recycle   Duration `toml:"recycle"`
 	Threshold int16    `toml:"threshold"`
-	Timeout   duration `toml:"timeout"`
+	Timeout   Duration `toml:"timeout"`
 }
 
 func (cnf *Config) String() string {
@@ -174,15 +174,15 @@ func (pcnf *PluginConfig) String() string {
 	return fmt.Sprintf("\n[%s]\nenabled: %v\naddress: %s", pcnf.Name, pcnf.Enabled, pcnf.ServerAddr)
 }
 
-type duration struct {
+type Duration struct {
 	time.Duration
 }
 
-func (d *duration) Get() time.Duration {
+func (d *Duration) Get() time.Duration {
 	return d.Duration
 }
 
-func (d *duration) UnmarshalText(text []byte) (err error) {
+func (d *Duration) UnmarshalText(text []byte) (err error) {
 	d.Duration, err = time.ParseDuration(string(text))
 	return err
 }

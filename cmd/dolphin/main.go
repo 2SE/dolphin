@@ -69,19 +69,11 @@ func run(cliCtx *cli.Context) error {
 	if len(pprof) > 0 {
 		runPprof(pprof)
 	}
-
-	//workerId, err := cluster.Init(cnf.GetClusterConfig())
-	//if err != nil {
-	//	log.Printf("初始化集群失败 %v", err)
-	//	return
-	//}
-	//
-	//log.Printf("当前节点运行的workid %d", workerId)
-	//
-	//cluster.Start()
-	//defer cluster.Shutdown()
-
-	//cluster.Route()
+	
+	localName, err := cluster.Init(cnf.ClusterCnf)
+	if err != nil {
+		log.Fatalf("failed to initial cluster. cause: %v", err)
+	}
 	//init route
 	route.InitRoute(cluster.Name(), cnf.RouteCnf)
 	//init event emitter
@@ -89,10 +81,6 @@ func run(cliCtx *cli.Context) error {
 	//init kafka consumers to push message into event
 	outbox.ConsumersInit(cnf.KafkaCnf, emiter)
 
-	localName, err := cluster.Init(cnf.ClusterCnf)
-	if err != nil {
-		log.Fatalf("failed to initial cluster. cause: %v", err)
-	}
 	cluster.Start()
 	defer cluster.Shutdown()
 	go routehttp.Start(localName, cnf.RouteHttpCnf.Address, cluster.Recv)
