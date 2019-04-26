@@ -86,7 +86,7 @@ func (w *WsServer) handleClientData(conn *net.Conn, msg []byte) {
 			log.Println("Ws: got redirect request", res.String())
 
 		} else {
-			rep, err := route.GetRouterInstance().RouteOut(pr.AppName(), req)
+			rep, err := route.GetRouterInstance().RouteOut(pr, req)
 			if err != nil {
 				// todo handle error
 				log.Error("Ws: handleClientData router out error ", err)

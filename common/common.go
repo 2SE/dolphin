@@ -2,7 +2,12 @@ package common
 
 import (
 	"bytes"
+	"errors"
 	"sort"
+)
+
+var (
+	ErrPeerNotFound = errors.New("common: peer not found")
 )
 
 const spilt = '/'
@@ -14,6 +19,7 @@ type PeerRouter interface {
 	PeerName() string
 	AppName() string
 	Equals(pr PeerRouter) bool
+	String() string
 }
 type PeerRouters []PeerRouter
 
@@ -29,28 +35,49 @@ type methodPath struct {
 }
 
 func (m *methodPath) String() string {
-	buffer := bytes.NewBuffer(nil)
-	buffer.WriteString(m.Version)
-	buffer.WriteRune(spilt)
-	buffer.WriteString(m.Action)
-	buffer.WriteRune(spilt)
-	buffer.WriteString(m.Action)
-	return buffer.String()
+	if m.buff == "" {
+		buffer := bytes.NewBuffer(nil)
+		buffer.WriteString(m.Version)
+		buffer.WriteRune(spilt)
+		buffer.WriteString(m.Action)
+		buffer.WriteRune(spilt)
+		buffer.WriteString(m.Action)
+		m.buff = buffer.String()
+	}
+	return m.buff
 }
 
 func NewPeerRouter(peerName, appName string) PeerRouter {
-	return &peerRoute{peerName, appName}
+	return &peerRoute{peer: peerName, app: appName}
 }
 
-type peerRoute [2]string
+type peerRoute struct {
+	peer string
+	app  string
+	str  string
+}
 
-func (s peerRoute) PeerName() string {
-	return s[0]
+func (s *peerRoute) PeerName() string {
+	return s.peer
 
 }
-func (s peerRoute) AppName() string {
-	return s[1]
+func (s *peerRoute) AppName() string {
+	return s.app
 }
+func (s *peerRoute) Equals(pr PeerRouter) bool {
+	return s.peer == pr.PeerName() && s.app == pr.AppName()
+}
+func (s *peerRoute) String() string {
+	if s.str == "" {
+		buffer := bytes.NewBuffer(nil)
+		buffer.WriteString(s.peer)
+		buffer.WriteRune(spilt)
+		buffer.WriteString(s.app)
+		s.str = buffer.String()
+	}
+	return s.str
+}
+
 func (s PeerRouters) Len() int      { return len(s) }
 func (s PeerRouters) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s PeerRouters) Less(i, j int) bool {
@@ -76,9 +103,9 @@ func (s *PeerRouters) RemoveByPeer(peerName string) {
 		}
 	}
 }
-func (s *PeerRouters) RemoveByApp(appName string) {
+func (s *PeerRouters) RemoveByPeerRouter(pr PeerRouter) {
 	for k, v := range *s {
-		if v.AppName() == appName {
+		if v.Equals(pr) {
 			if k == 0 {
 				*s = (*s)[1:]
 			} else if k == s.Len() {
@@ -96,8 +123,5 @@ func (s PeerRouters) FindOne(peerName string) (PeerRouter, error) {
 			return v, nil
 		}
 	}
-	return peerRoute{}, nil // ErrPeerNotFound
-}
-func (s peerRoute) Equals(pr PeerRouter) bool {
-	return s == pr
+	return nil, ErrPeerNotFound
 }

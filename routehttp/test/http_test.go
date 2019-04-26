@@ -10,16 +10,17 @@ import (
 	"testing"
 )
 
-func TestRouteHttpStart(t *testing.T) {
+/*func TestRouteHttpStart(t *testing.T) {
 	//route.InitRoute("123")
 	routehttp.Start("127.0.0.1:10086")
-}
+}*/
 
 func TestRouteHttpTest(t *testing.T) {
 
 	appInfo := &routehttp.AppInfo{
-		AppName: "testApp",
-		Address: "127.0.0.1:10087",
+		PeerName: "peer",
+		AppName:  "app",
+		Address:  "127.0.0.1:10087",
 		Methods: []routehttp.MP{
 			{"1", "2", "3"},
 			{"1", "2", "4"},
@@ -31,6 +32,7 @@ func TestRouteHttpTest(t *testing.T) {
 		t.Error(err)
 		return
 	}
+	fmt.Println(string(appJson))
 	resp, err := http.Post("http://127.0.0.1:10086", "application/json; charset=utf-8", bytes.NewReader(appJson))
 	if err != nil {
 		t.Error(err)

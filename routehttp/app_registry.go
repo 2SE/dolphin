@@ -11,9 +11,10 @@ import (
 )
 
 type AppInfo struct {
-	AppName string
-	Address string
-	Methods []MP
+	PeerName string
+	AppName  string
+	Address  string
+	Methods  []MP
 }
 type MP struct {
 	Reversion string

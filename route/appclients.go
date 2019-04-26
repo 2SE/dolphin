@@ -65,7 +65,7 @@ func (p *resourcesPool) errRecovery() {
 			for k, v := range p.connErr {
 				if v > p.threshold {
 					//todo removeByApp
-					p.UnRegisterApp(p.addrApp[k])
+					p.UnRegisterApp(p.addrPR[k])
 					log.WithFields(log.Fields{
 						logFieldKey: "errRecovery",
 					}).Tracef("appclient %s was removed\n", k)
