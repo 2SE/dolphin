@@ -10,9 +10,9 @@ import (
 
 func TestResourcesPool_RegiserSubResources(t *testing.T) {
 	route := InitRoute("node1", &config.RouteConfig{
-		Recycle:   10,
+		Recycle:   config.Duration{20},
 		Threshold: 10,
-		Timeout:   60,
+		Timeout:   config.Duration{20},
 	})
 	route.Register([]common.MethodPath{
 		common.NewMethodPath("1", "2", "3"),

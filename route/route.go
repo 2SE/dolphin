@@ -81,8 +81,7 @@ type resourcesPool struct {
 func (s *resourcesPool) Register(mps []common.MethodPath, appName, peerName, address string) error {
 	s.m.Lock()
 	defer s.m.Unlock()
-	if peerName == "" || peerName == s.curPeer {
-		peerName = s.curPeer
+	if peerName == s.curPeer {
 		err := s.TryAddClient(address)
 		if err != nil {
 			log.WithFields(log.Fields{
@@ -90,7 +89,6 @@ func (s *resourcesPool) Register(mps []common.MethodPath, appName, peerName, add
 			}).Errorln(err)
 			return err
 		}
-
 	}
 	pr := common.NewPeerRouter(peerName, appName)
 	s.addrPR[address] = pr
