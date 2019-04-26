@@ -69,21 +69,21 @@ func run(cliCtx *cli.Context) error {
 	if len(pprof) > 0 {
 		runPprof(pprof)
 	}
-	
+
 	localName, err := cluster.Init(cnf.ClusterCnf)
 	if err != nil {
 		log.Fatalf("failed to initial cluster. cause: %v", err)
 	}
 	//init route
-	route.InitRoute(cluster.Name(), cnf.RouteCnf)
+	router := route.InitRoute(cluster.Name(), cnf.RouteCnf)
 	//init event emitter
 	emiter := event.NewEmitter(256)
 	//init kafka consumers to push message into event
 	outbox.ConsumersInit(cnf.KafkaCnf, emiter)
 
-	cluster.Start()
+	cluster.Start(router)
 	defer cluster.Shutdown()
-	go routehttp.Start(localName, cnf.RouteHttpCnf.Address, cluster.Recv)
+	go routehttp.Start(localName, cnf.RouteHttpCnf.Address, cluster.Notify)
 
 	ws.Init(cnf.WsCnf)
 	if err = ws.ListenAndServe(signalHandler()); err != nil {

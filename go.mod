@@ -10,7 +10,7 @@ require (
 	github.com/golang/protobuf v1.3.2-0.20190409050943-e91709a02e0e
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/uuid v1.1.1
-	github.com/magiconair/properties v1.8.0
+	github.com/gorilla/websocket v1.4.0
 	github.com/pierrec/lz4 v2.0.7+incompatible // indirect
 	github.com/segmentio/kafka-go v0.2.2
 	github.com/sirupsen/logrus v1.4.1

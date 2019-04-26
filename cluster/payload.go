@@ -109,3 +109,15 @@ var pingPool = &sync.Pool{
 		return &PingRequest{}
 	},
 }
+
+var reqPool = &sync.Pool{
+	New: func() interface{} {
+		return &RequestPkt{}
+	},
+}
+
+var respPool = &sync.Pool{
+	New: func() interface{} {
+		return &RespPkt{}
+	},
+}

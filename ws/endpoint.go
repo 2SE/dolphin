@@ -7,6 +7,7 @@ import (
 	dhttp "github.com/2se/dolphin/http"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
+	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme/autocert"
 	"net/http"
@@ -112,35 +113,23 @@ Loop:
 	return nil
 }
 
-func (wss *WsServer)serveWebsocket(w http.ResponseWriter, req *http.Request) {
-	conn, _, _, err := ws.UpgradeHTTP(req, w)
-	if err != nil {
-		log.Errorf("%v", err)
-		// TODO http response
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	// Allow connections from any Origin
+	CheckOrigin: func(r *http.Request) bool { return true },
+}
+
+func (w *WsServer) serveWebsocket(writer http.ResponseWriter, req *http.Request) {
+	ws, err := upgrader.Upgrade(writer, req, nil)
+	if _, ok := err.(websocket.HandshakeError); ok {
+		log.Println("ws: Not a websocket handshake")
+		return
+	} else if err != nil {
+		log.Println("ws: failed to Upgrade ", err)
+		return
 	}
 
-	go func() {
-		for {
-			msg, opCode, err := wsutil.ReadClientData(conn)
-			if err != nil {
-				// todo handle error
-				log.Error("Ws: read client data error", err)
-				return
-			}
-			defer conn.Close()
-			log.Println("Ws: got msg ", string(msg))
-
-			switch opCode {
-			case ws.OpPing:
-				wsutil.WriteServerMessage(conn, ws.OpPong, nil)
-				clientID := wss.Conns[&conn]
-				wss.Clients[clientID].Timestamp = time.Now().UnixNano() / 1e6
-			case ws.OpClose:
-			default:
-				wss.handleClientData(&conn, msg)
-			}
-		}
-	}()
 }
 
 func makeTls(cnf *config.WsTlsConfig) (*tls.Config, error) {
