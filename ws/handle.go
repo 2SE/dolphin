@@ -4,6 +4,7 @@ import (
 	"github.com/2se/dolphin/cluster"
 	"github.com/2se/dolphin/common"
 	"github.com/2se/dolphin/event"
+	"github.com/2se/dolphin/pb"
 	"github.com/2se/dolphin/route"
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
@@ -21,7 +22,7 @@ var (
 const HeartBeatEquation = 3000
 
 type SubscribeTopicer struct {
-	*route.ClientComRequest
+	*pb.ClientComRequest
 }
 
 func (s *SubscribeTopicer) GetTopic() string {
@@ -49,7 +50,7 @@ func (w *WsServer) handleClientData(conn *net.Conn, msg []byte) {
 		cli.ID = verifyData(msg)
 		w.AddCli <- cli
 	}
-	req := new(route.ClientComRequest)
+	req := new(pb.ClientComRequest)
 	err := proto.Unmarshal(msg, req)
 	if err != nil {
 		log.Error("Ws: proto unmarsh msg error", err)

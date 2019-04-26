@@ -3,7 +3,7 @@ package ws
 import (
 	"context"
 	"github.com/2se/dolphin/config"
-	"github.com/2se/dolphin/route"
+	"github.com/2se/dolphin/pb"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/golang/protobuf/proto"
@@ -21,17 +21,17 @@ func TestListenAndServe(t *testing.T) {
 
 	Init(cfg)
 	// client
-	reqData := &route.ClientComRequest{
-		Id: "1",
-		Qid: "test_client_id",
+	reqData := &pb.ClientComRequest{
+		Id:      "1",
+		Qid:     "test_client_id",
 		TraceId: "test_trace_id",
-		Meta: &route.ClientComMeta{
-			Resource: "user",
-			Revision: "v1",
-			Action: "getInfo",
+		Meta: &pb.ClientComMeta{
+			Resource:     "user",
+			Revision:     "v1",
+			Action:       "getInfo",
 			Subscription: false,
-			Key: "test_subscribe_key",
-			Uuid: "test_uuid",
+			Key:          "test_subscribe_key",
+			Uuid:         "test_uuid",
 		},
 	}
 	reqDataByte, _ := proto.Marshal(reqData)

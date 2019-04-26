@@ -2,7 +2,7 @@ package ws
 
 import (
 	"github.com/2se/dolphin/event"
-	"github.com/2se/dolphin/route"
+	"github.com/2se/dolphin/pb"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	log "github.com/sirupsen/logrus"
@@ -96,7 +96,7 @@ func (w *WsServer) Start() {
 
 // SendMessage send message to the ws client by clientId
 func (w *WsServer) SendMessage(cli *Client) {
-	var data route.ClientComMeta
+	var data pb.ClientComMeta
 	if _, ok := w.Conns[cli.conn]; ok {
 		if err := wsutil.WriteServerMessage(*cli.conn, ws.OpBinary, cli.Message); err != nil {
 			// todo handle error and resend
