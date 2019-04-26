@@ -5,8 +5,8 @@ import (
 	"github.com/2se/dolphin/config"
 	"github.com/2se/dolphin/event"
 	"github.com/2se/dolphin/outbox"
-	"github.com/2se/dolphin/route"
 	"github.com/2se/dolphin/routehttp"
+	"github.com/2se/dolphin/router"
 	"github.com/2se/dolphin/ws"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/urfave/cli.v1"
@@ -79,9 +79,9 @@ func run(cliCtx *cli.Context) error {
 	if err != nil {
 		log.Fatalf("failed to initial cluster. cause: %v", err)
 	}
-	//init route
-	router := route.InitRouter(localCluster, cnf.RouteCnf)
-	cluster.Start(router)
+	//init router
+	appRouter := router.Init(localCluster, cnf.RouteCnf)
+	cluster.Start(appRouter)
 	defer cluster.Shutdown()
 	go routehttp.Start(cnf.RouteHttpCnf.Address)
 

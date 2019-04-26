@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/2se/dolphin/common"
-	"github.com/2se/dolphin/route"
+	"github.com/2se/dolphin/router"
 	"io/ioutil"
 	"net/http"
 )
@@ -40,7 +40,7 @@ func RegistryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pr := common.NewPeerRouter(appInfo.AppName, "")
-	err = route.Register(mps, pr, appInfo.Address)
+	err = router.Register(mps, pr, appInfo.Address)
 	w.WriteHeader(http.StatusOK)
 	if err != nil {
 		w.Write([]byte(err.Error()))

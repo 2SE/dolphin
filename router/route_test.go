@@ -1,4 +1,4 @@
-package route
+package router
 
 import (
 	"fmt"
@@ -8,11 +8,11 @@ import (
 )
 
 type mockRouter interface {
-	listTopicPeers() map[string]*common.PeerRouters
+	ListTopicPeers() map[string]*common.PeerRouters
 }
 
 func TestResourcesPool_RegiserSubResources(t *testing.T) {
-	route := InitRouter("node1", &config.RouteConfig{
+	route := Init("node1", &config.RouteConfig{
 		Recycle:   10,
 		Threshold: 10,
 		Timeout:   config.Duration{20},
@@ -28,7 +28,7 @@ func TestResourcesPool_RegiserSubResources(t *testing.T) {
 		common.NewMethodPath("1", "3", "3"),
 		common.NewMethodPath("1", "4", "3"),
 	}, "50", "node2", "0.0.0.0:0000")
-	for k, v := range route.(mockRouter).listTopicPeers() {
+	for k, v := range route.(mockRouter).ListTopicPeers() {
 		fmt.Println("key:", k)
 		fmt.Printf("peer:%s app:%s ", (*v)[0][0], (*v)[0][1])
 	}

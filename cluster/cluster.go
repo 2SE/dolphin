@@ -22,6 +22,8 @@ const (
 
 	LocalPeer        = "local"
 	tcpNetwork       = "tcp"
+	ReportMethod     = "Cluster.Report"
+	RequestMethod    = "Cluster.Invoke"
 	defaultVoteAfter = 8
 	defaultFailAfter = 16
 )
@@ -87,7 +89,7 @@ func (d *delegatedCluster) Notify(mps []common.MethodPath, pr common.PeerRouter)
 	done := make(chan *rpc.Call, peerCount)
 	for _, peer := range gwCluster.peers {
 		resp := &RespPkt{}
-		peer.callAsync("Cluster.Report", req, resp, done)
+		peer.callAsync(ReportMethod, req, resp, done)
 	}
 	reqPool.Put(req)
 
@@ -132,7 +134,7 @@ func (d *delegatedCluster) Request(value common.PeerRouter, message proto.Messag
 
 		resp := respPool.Get().(*RespPkt)
 		defer respPool.Put(resp)
-		if err = peer.call("Cluster.Invoke", req, resp); err != nil {
+		if err = peer.call(RequestMethod, req, resp); err != nil {
 			return nil, err
 		}
 

@@ -1,4 +1,4 @@
-package route
+package router
 
 import (
 	"errors"
@@ -28,7 +28,7 @@ const logFieldKey = "route"
 
 // 初始化本地route
 // peer 本地cluster 编号
-func InitRouter(cluster common.LocalCluster, cnf *config.RouteConfig) common.Router {
+func Init(cluster common.LocalCluster, cnf *config.RouteConfig) common.Router {
 	r = &resourcesPool{
 		cluster:    cluster,
 		topicPeers: make(map[string]*common.PeerRouters),
@@ -54,18 +54,6 @@ type resourcesPool struct {
 	threshold  int16
 	timeout    time.Duration
 	m          sync.RWMutex
-}
-
-func Register(mps []common.MethodPath, pr common.PeerRouter, address string) error {
-	return r.Register(mps, pr, address)
-}
-
-func RouteIn(mp common.MethodPath, id string) (pr common.PeerRouter, redirect bool, err error) {
-	return r.RouteIn(mp, id)
-}
-
-func RouteOut(pr common.PeerRouter, request proto.Message) (response proto.Message, err error) {
-	return r.RouteOut(pr, request)
 }
 
 func (s *resourcesPool) Register(mps []common.MethodPath, pr common.PeerRouter, address string) error {
@@ -164,6 +152,6 @@ func (s *resourcesPool) RouteOut(pr common.PeerRouter, request proto.Message) (r
 	}
 	return s.callAppAction(addr, request)
 }
-func (s *resourcesPool) listTopicPeers() map[string]*common.PeerRouters {
+func (s *resourcesPool) ListTopicPeers() map[string]*common.PeerRouters {
 	return s.topicPeers
 }

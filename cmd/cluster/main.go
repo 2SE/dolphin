@@ -72,7 +72,7 @@ func run(context *cli.Context) error {
 		log.Fatalf("初始化集群出错! %v", err)
 	}
 
-	cluster.Start()
+	cluster.Start(nil)
 	<-signalHandler()
 	cluster.Shutdown()
 

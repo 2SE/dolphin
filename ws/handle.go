@@ -5,7 +5,7 @@ import (
 	"github.com/2se/dolphin/common"
 	"github.com/2se/dolphin/event"
 	"github.com/2se/dolphin/pb"
-	"github.com/2se/dolphin/route"
+	"github.com/2se/dolphin/router"
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 	"net"
@@ -71,7 +71,7 @@ func (w *WsServer) handleClientData(conn *net.Conn, msg []byte) {
 		//log.Printf("Ws: got data, client is %s, data is %v", cli.ID, metaData)
 		//todo
 		mp := common.NewMethodPath(req.Meta.Revision, req.Meta.Resource, req.Meta.Action)
-		pr, redirect, err := route.RouteIn(mp, cli.ID)
+		pr, redirect, err := router.RouteIn(mp, cli.ID)
 		if err != nil {
 
 		}
@@ -86,7 +86,7 @@ func (w *WsServer) handleClientData(conn *net.Conn, msg []byte) {
 			log.Println("Ws: got redirect request", res.String())
 
 		} else {
-			rep, err := route.RouteOut(pr, req)
+			rep, err := router.RouteOut(pr, req)
 			if err != nil {
 				// todo handle error
 				log.Error("Ws: handleClientData router out error ", err)
