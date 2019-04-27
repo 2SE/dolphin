@@ -84,12 +84,14 @@ func (d *delegatedCluster) Notify(pr core.PeerRouter, mps ...core.MethodPath) {
 
 	req := reqPool.Get().(*RequestPkt)
 	req.PeerName = gwCluster.thisName
-	req.PktType = OnlinePktType
-	if len(mps) == 0 {
+	if len(mps) > 0 {
+		req.PktType = OnlinePktType
+		req.Paths = mps
+	} else {
 		req.PktType = OfflinePktType
+		req.Paths = nil
 	}
 	req.Signature = gwCluster.signature
-	req.Paths = mps
 	req.Pkt = nil
 
 	peerCount := len(gwCluster.peers)
