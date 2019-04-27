@@ -3,8 +3,8 @@ package routehttp
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/2se/dolphin/common"
-	"github.com/2se/dolphin/router"
+	"github.com/2se/dolphin/core"
+	"github.com/2se/dolphin/core/router"
 	"io/ioutil"
 	"net/http"
 )
@@ -34,12 +34,12 @@ func RegistryHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 	}
 
-	mps := make([]common.MethodPath, len(appInfo.Methods))
+	mps := make([]core.MethodPath, len(appInfo.Methods))
 	for _, v := range appInfo.Methods {
-		mps = append(mps, common.NewMethodPath(v.Reversion, v.Resource, v.Action))
+		mps = append(mps, core.NewMethodPath(v.Reversion, v.Resource, v.Action))
 	}
 
-	pr := common.NewPeerRouter(appInfo.AppName, "")
+	pr := core.NewPeerRouter(appInfo.AppName, "")
 	err = router.Register(mps, pr, appInfo.Address)
 	w.WriteHeader(http.StatusOK)
 	if err != nil {

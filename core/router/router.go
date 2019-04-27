@@ -2,17 +2,15 @@ package router
 
 import (
 	"errors"
-	"github.com/2se/dolphin/common"
+	"github.com/2se/dolphin/common/ringhash"
 	"github.com/2se/dolphin/config"
+	"github.com/2se/dolphin/core"
 	"github.com/2se/dolphin/pb"
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
+	"hash/crc32"
 	"sync"
 	"time"
-
-	"hash/crc32"
-
-	"github.com/2se/dolphin/common/ringhash"
 )
 
 var r *resourcesPool
@@ -28,10 +26,10 @@ const logFieldKey = "route"
 
 // 初始化本地route
 // peer 本地cluster 编号
-func Init(cluster common.LocalCluster, cnf *config.RouteConfig) common.Router {
+func Init(localPeer core.LocalPeer, cnf *config.RouteConfig) core.Router {
 	r = &resourcesPool{
-		cluster:    cluster,
-		topicPeers: make(map[string]*common.PeerRouters),
+		localPeer:  localPeer,
+		topicPeers: make(map[string]*core.PeerRouters),
 		ring:       make(map[string]*ringhash.Ring),
 		//appAddr:    make(map[string]string),
 		recycle:   cnf.Recycle.Duration,
@@ -42,25 +40,25 @@ func Init(cluster common.LocalCluster, cnf *config.RouteConfig) common.Router {
 }
 
 type resourcesPool struct {
-	cluster common.LocalCluster
-	pRAddr  map[string]string            //key:common.PeerRouter val:address (only save local app)
-	addrPR  map[string]common.PeerRouter //key:address val:appname
-	connErr map[string]int16             //key address val:count the err count in a period time for client send request
+	localPeer core.LocalPeer
+	pRAddr    map[string]string          //key:core.PeerRouter val:address (only save local app)
+	addrPR    map[string]core.PeerRouter //key:address val:appname
+	connErr   map[string]int16           //key address val:count the err count in a period time for client send request
 
-	topicPeers map[string]*common.PeerRouters //key: common.MethodPath
-	clients    map[string]pb.AppServeClient   //key:address val:grpcClient (only save local app)
-	ring       map[string]*ringhash.Ring      //key: common.MethodPath
+	topicPeers map[string]*core.PeerRouters //key: core.MethodPath
+	clients    map[string]pb.AppServeClient //key:address val:grpcClient (only save local app)
+	ring       map[string]*ringhash.Ring    //key: core.MethodPath
 	recycle    time.Duration
 	threshold  int16
 	timeout    time.Duration
 	m          sync.RWMutex
 }
 
-func (s *resourcesPool) Register(mps []common.MethodPath, pr common.PeerRouter, address string) error {
+func (s *resourcesPool) Register(mps []core.MethodPath, pr core.PeerRouter, address string) error {
 	s.m.Lock()
 	defer s.m.Unlock()
 	if pr.PeerName() == "" {
-		pr.SetPeerName(s.cluster.Name())
+		pr.SetPeerName(s.localPeer.Name())
 		err := s.TryAddClient(address)
 		if err != nil {
 			log.WithFields(log.Fields{
@@ -73,7 +71,7 @@ func (s *resourcesPool) Register(mps []common.MethodPath, pr common.PeerRouter, 
 	s.pRAddr[pr.String()] = address
 	for _, mp := range mps {
 		if s.topicPeers[mp.String()] == nil {
-			s.topicPeers[mp.String()] = &common.PeerRouters{}
+			s.topicPeers[mp.String()] = &core.PeerRouters{}
 		}
 		flag := true
 		for _, peerRoute := range *s.topicPeers[mp.String()] {
@@ -87,6 +85,8 @@ func (s *resourcesPool) Register(mps []common.MethodPath, pr common.PeerRouter, 
 			s.topicPeers[mp.String()].Sort()
 		}
 	}
+
+	s.localPeer.Notify(pr, mps...)
 	return nil
 }
 
@@ -98,7 +98,7 @@ func (s *resourcesPool) UnRegisterPeer(peerName string) {
 	}
 }
 
-func (s *resourcesPool) UnRegisterApp(pr common.PeerRouter) {
+func (s *resourcesPool) UnRegisterApp(pr core.PeerRouter) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	for _, prs := range s.topicPeers {
@@ -109,16 +109,19 @@ func (s *resourcesPool) UnRegisterApp(pr common.PeerRouter) {
 		delete(s.addrPR, address)
 		s.RemoveClient(address)
 	}
+
+	s.localPeer.Notify(pr)
 }
 
-func (s *resourcesPool) RouteIn(mp common.MethodPath, id string) (pr common.PeerRouter, redirect bool, err error) {
+func (s *resourcesPool) RouteIn(mp core.MethodPath, id string, request proto.Message) (response proto.Message, err error) {
 	psr, ok := s.topicPeers[mp.String()]
 	if !ok {
 		log.WithFields(log.Fields{
 			logFieldKey: "RouteIn",
 		}).Warnf("methodpath %s not found\n", mp.String())
-		return nil, false, ErrMethodPathNotFound
+		return nil, ErrMethodPathNotFound
 	}
+
 	if _, ok := s.ring[mp.String()]; !ok {
 		keys := make([]string, 0, psr.Len())
 		for _, v := range *psr {
@@ -128,21 +131,20 @@ func (s *resourcesPool) RouteIn(mp common.MethodPath, id string) (pr common.Peer
 		ring.Add(keys...)
 		s.ring[mp.String()] = ring
 	}
+
 	peer := s.ring[mp.String()].Get(id)
 	pa, err := psr.FindOne(peer)
 	if err != nil {
 		log.WithFields(log.Fields{
 			logFieldKey: "RouteIn",
 		}).Warnf("peer %s not exists\n", peer)
-		return nil, false, err
+		return nil, err
 	}
-	if peer != s.cluster.Name() {
-		redirect = true
-	}
-	return pa, redirect, nil
+
+	return s.localPeer.Request(pa, request)
 }
 
-func (s *resourcesPool) RouteOut(pr common.PeerRouter, request proto.Message) (response proto.Message, err error) {
+func (s *resourcesPool) RouteOut(pr core.PeerRouter, request proto.Message) (response proto.Message, err error) {
 	addr, ok := s.pRAddr[pr.String()]
 	if !ok {
 		log.WithFields(log.Fields{
@@ -152,6 +154,7 @@ func (s *resourcesPool) RouteOut(pr common.PeerRouter, request proto.Message) (r
 	}
 	return s.callAppAction(addr, request)
 }
-func (s *resourcesPool) ListTopicPeers() map[string]*common.PeerRouters {
+
+func (s *resourcesPool) ListTopicPeers() map[string]*core.PeerRouters {
 	return s.topicPeers
 }

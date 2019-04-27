@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/2se/dolphin/cluster"
 	"github.com/2se/dolphin/config"
+	"github.com/2se/dolphin/core/cluster"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/urfave/cli.v1"
 	"os"

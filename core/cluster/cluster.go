@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"encoding/gob"
 	"errors"
-	"github.com/2se/dolphin/common"
 	"github.com/2se/dolphin/config"
+	"github.com/2se/dolphin/core"
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 	"net"
@@ -43,10 +43,10 @@ var (
 )
 
 type delegatedCluster struct {
-	router common.Router
+	router core.Router
 }
 
-func (d *delegatedCluster) SetRouter(router common.Router) {
+func (d *delegatedCluster) SetRouter(router core.Router) {
 	d.router = router
 }
 
@@ -71,7 +71,7 @@ func (d *delegatedCluster) Partitioned() bool {
 
 // Recv call remote Cluster.Recv
 // The request from remote peer`s broadcast.
-func (d *delegatedCluster) Notify(mps []common.MethodPath, pr common.PeerRouter) {
+func (d *delegatedCluster) Notify(pr core.PeerRouter, mps ...core.MethodPath) {
 	if gwCluster == nil {
 		return
 	}
@@ -83,7 +83,12 @@ func (d *delegatedCluster) Notify(mps []common.MethodPath, pr common.PeerRouter)
 
 	req := reqPool.Get().(*RequestPkt)
 	req.PeerName = gwCluster.thisName
-	//req.Pkt = message
+	req.PktType = OnlinePktType
+	if len(mps) == 0 {
+		req.PktType = OfflinePktType
+	}
+	req.Pkt = nil
+	req.Signature = ""
 
 	peerCount := len(gwCluster.peers)
 	done := make(chan *rpc.Call, peerCount)
@@ -114,7 +119,7 @@ func (d *delegatedCluster) Notify(mps []common.MethodPath, pr common.PeerRouter)
 // Request call remote Cluster.Request
 // the request from client
 // it will choose one peer to send request and reecived call back response
-func (d *delegatedCluster) Request(value common.PeerRouter, message proto.Message) (response proto.Message, err error) {
+func (d *delegatedCluster) Request(value core.PeerRouter, message proto.Message) (response proto.Message, err error) {
 	if gwCluster == nil {
 		return d.router.RouteOut(value, message)
 	}
@@ -145,11 +150,27 @@ func (d *delegatedCluster) Request(value common.PeerRouter, message proto.Messag
 	return nil, PeerUnavailableErr
 }
 
+func (d *delegatedCluster) UnRegisterPeer(peerName string) {
+	d.router.UnRegisterPeer(peerName)
+}
+
+func (d *delegatedCluster) RouteOut(pr core.PeerRouter, request proto.Message) (response proto.Message, err error) {
+	return d.router.RouteOut(pr, request)
+}
+
+func (d *delegatedCluster) Register(mps []core.MethodPath, pr core.PeerRouter, address string) error {
+	return d.router.Register(mps, pr, address)
+}
+
+func (d *delegatedCluster) UnRegister(pr core.PeerRouter) {
+	d.router.UnRegisterApp(pr)
+}
+
 // Init 初始化集群，返回本节点在集群中的名称
 // 如果是单实例模式，节点名称为local
 // 如果是集群模式，节点名称为配置文件中定义的本节点的名称
 // 如果未传入配置文件，返回错误，节点名称为空字符串
-func Init(cnf *config.ClusterConfig) (localCluster common.LocalCluster, err error) {
+func Init(cnf *config.ClusterConfig) (localPeer core.LocalPeer, err error) {
 	log.Debug("cluster: starting init")
 	if cnf == nil {
 		log.Errorf("cluster: %s", NoConfigErr)
@@ -159,7 +180,7 @@ func Init(cnf *config.ClusterConfig) (localCluster common.LocalCluster, err erro
 	// Name of the current peer is not specified - disable clustering
 	if cnf.Self == "" {
 		log.Debug("cluster: config with a singleton mode.")
-		localCluster = &delegatedCluster{}
+		localPeer = &delegatedCluster{}
 		return
 	}
 
@@ -202,7 +223,7 @@ func Init(cnf *config.ClusterConfig) (localCluster common.LocalCluster, err erro
 	return gwCluster.delegate, nil
 }
 
-func Start(router common.Router) {
+func Start(router core.Router) {
 	log.Debug("cluster: starting now...")
 	if gwCluster == nil {
 		log.Info("cluster: runing in singleton mode")
@@ -325,8 +346,8 @@ func (c *Cluster) Invoke(msg *RequestPkt, resp *RespPkt) (err error) {
 	}
 
 	var result proto.Message
-	pr := common.NewPeerRouter(msg.PeerName, msg.AppName)
-	if result, err = c.delegate.router.RouteOut(pr, msg.Pkt); err != nil {
+	pr := core.NewPeerRouter(msg.PeerName, msg.AppName)
+	if result, err = c.delegate.RouteOut(pr, msg.Pkt); err != nil {
 		log.WithError(err).Errorf("cluster: error found when remote invoke RouteOut method")
 		resp.Code = 500
 	} else {
@@ -341,9 +362,17 @@ func (c *Cluster) Invoke(msg *RequestPkt, resp *RespPkt) (err error) {
 // Report 用于接收来自远端节点的内部广播，并调用本地Router.Register方法.
 // 看作是内部节点对其他节点的广播，不对客户端开放
 // Called by remote peer
-func (c *Cluster) Report(msg *RespPkt, unused *bool) error {
+func (c *Cluster) Report(msg *RequestPkt, resp *RespPkt) error {
 	log.Println("cluster: response from Master for session ", msg.PeerValue)
-	return c.delegate.router.Register()
+	pr := core.NewPeerRouter(msg.PeerName, msg.AppName)
+	switch msg.PktType {
+	case OnlinePktType:
+		c.delegate.Register(nil, pr, "")
+	case OfflinePktType:
+		c.delegate.UnRegister(pr)
+	}
+	
+	return c.delegate.Register(nil, pr, "")
 }
 
 // Ping 集群内部接口，供远端主节点调用rpc.Client.Call("Cluster.Ping"...
@@ -494,7 +523,7 @@ func (c *Cluster) checkPeers(onInit bool, peerValues []*PeerValue) {
 			if !found {
 				peer.disconnect()
 				delete(c.peers, key)
-				c.delegate.router.UnRegisterPeer(peer.name)
+				c.delegate.UnRegisterPeer(peer.name)
 			}
 
 			found = false

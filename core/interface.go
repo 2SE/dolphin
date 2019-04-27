@@ -1,4 +1,4 @@
-package common
+package core
 
 import (
 	"bytes"
@@ -15,17 +15,16 @@ const (
 	spilt = '/'
 )
 
-type LocalCluster interface {
-	SetRouter(Router)
+type LocalPeer interface {
 	Name() string
-	Partitioned() bool
-	Notify([]MethodPath, PeerRouter)
+	SetRouter(Router)
+	Notify(PeerRouter, ...MethodPath)
 	Request(PeerRouter, proto.Message) (proto.Message, error)
 }
 
 type Router interface {
 	//获取路由分流指向
-	RouteIn(mp MethodPath, id string) (pr PeerRouter, redirect bool, err error)
+	RouteIn(mp MethodPath, id string, request proto.Message) (response proto.Message, err error)
 	//根据peerRouter将request定向到指定Grpc服务并返回结果
 	RouteOut(pr PeerRouter, request proto.Message) (response proto.Message, err error)
 	//注册单个

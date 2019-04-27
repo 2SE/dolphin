@@ -1,11 +1,10 @@
 package ws
 
 import (
-	"github.com/2se/dolphin/cluster"
-	"github.com/2se/dolphin/common"
+	"github.com/2se/dolphin/core"
+	"github.com/2se/dolphin/core/router"
 	"github.com/2se/dolphin/event"
 	"github.com/2se/dolphin/pb"
-	"github.com/2se/dolphin/router"
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 	"net"
@@ -59,6 +58,23 @@ func (w *WsServer) handleClientData(conn *net.Conn, msg []byte) {
 	log.Println("unmashal msg", req)
 
 	wssub := &SubscribeTopicer{req}
+	// todo handle data
+	//log.Printf("Ws: got data, client is %s, data is %v", cli.ID, metaData)
+	//todo
+	mp := core.NewMethodPath(req.Meta.Revision, req.Meta.Resource, req.Meta.Action)
+	res, err := router.RouteIn(mp, cli.ID, req)
+	if err != nil {
+		// TODO
+		return
+	}
+	data, err := proto.Marshal(res)
+	if err != nil {
+		// todo handle error
+		log.Error("Ws: marshal ServerComResponse data error", err)
+	}
+	cli.Message = data
+	w.SendMsg <- cli
+
 	if req.Meta.Key != "" {
 		log.Printf("Ws: client [%s] subscribe...", cli.ID)
 		// subscribe
@@ -66,39 +82,6 @@ func (w *WsServer) handleClientData(conn *net.Conn, msg []byte) {
 		log.Printf("Ws: client [%s] subscribe success, subPid is [%s]", cli.ID, subPid)
 		subscribe := &Subscribe{event, nil, subPid, req.Meta.Key, cli}
 		w.Subscribe <- subscribe
-	} else {
-		// todo handle data
-		//log.Printf("Ws: got data, client is %s, data is %v", cli.ID, metaData)
-		//todo
-		mp := common.NewMethodPath(req.Meta.Revision, req.Meta.Resource, req.Meta.Action)
-		pr, redirect, err := router.RouteIn(mp, cli.ID)
-		if err != nil {
-
-		}
-		if redirect {
-			res, err := cluster.Request(pr, req)
-			if err != nil {
-				// todo handle error
-				log.Error("Ws: handleClientData redirect error ", err)
-			}
-
-			// todo handle redirect
-			log.Println("Ws: got redirect request", res.String())
-
-		} else {
-			rep, err := router.RouteOut(pr, req)
-			if err != nil {
-				// todo handle error
-				log.Error("Ws: handleClientData router out error ", err)
-			}
-			data, err := proto.Marshal(rep)
-			if err != nil {
-				// todo handle error
-				log.Error("Ws: marshal ServerComResponse data error", err)
-			}
-			cli.Message = data
-			w.SendMsg <- cli
-		}
 	}
 }
 
