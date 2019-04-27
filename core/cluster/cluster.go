@@ -10,6 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"net"
 	"net/rpc"
+	"sync"
 	"time"
 )
 
@@ -87,8 +88,9 @@ func (d *delegatedCluster) Notify(pr core.PeerRouter, mps ...core.MethodPath) {
 	if len(mps) == 0 {
 		req.PktType = OfflinePktType
 	}
+	req.Signature = gwCluster.signature
+	req.Paths = mps
 	req.Pkt = nil
-	req.Signature = ""
 
 	peerCount := len(gwCluster.peers)
 	done := make(chan *rpc.Call, peerCount)
@@ -96,6 +98,7 @@ func (d *delegatedCluster) Notify(pr core.PeerRouter, mps ...core.MethodPath) {
 		resp := &RespPkt{}
 		peer.callAsync(ReportMethod, req, resp, done)
 	}
+
 	reqPool.Put(req)
 
 	// TODO change timeout time
@@ -136,6 +139,7 @@ func (d *delegatedCluster) Request(value core.PeerRouter, message proto.Message)
 		req.AppName = value.AppName()
 		req.Signature = gwCluster.signature
 		req.Pkt = message
+		req.PktType = RequestPktType
 
 		resp := respPool.Get().(*RespPkt)
 		defer respPool.Put(resp)
@@ -324,6 +328,7 @@ func Shutdown() {
 
 // 集群有两个角色一个是主节点角色，一个是从节点角色。在同一时间，集群的节点只承担一种角色
 type Cluster struct {
+	sync.RWMutex
 	peers     map[string]*peer // 集群中其他的节点列表
 	signature string           // signature for peers array(sort by charactor asc)
 	thisName  string           // 本节点的名称
@@ -362,17 +367,28 @@ func (c *Cluster) Invoke(msg *RequestPkt, resp *RespPkt) (err error) {
 // Report 用于接收来自远端节点的内部广播，并调用本地Router.Register方法.
 // 看作是内部节点对其他节点的广播，不对客户端开放
 // Called by remote peer
-func (c *Cluster) Report(msg *RequestPkt, resp *RespPkt) error {
-	log.Println("cluster: response from Master for session ", msg.PeerValue)
+func (c *Cluster) Report(msg *RequestPkt, resp *RespPkt) (err error) {
+	log.Println("cluster: Report for remote app register event ")
+	resp.Code = 200
+	resp.PeerValue = &PeerValue{c.thisName, c.listenOn}
+	if msg.Signature != c.signature {
+		log.Warnf("cluster.Report: the cluster peers may be in election phase")
+		resp.Code = 500
+		return
+	}
+
 	pr := core.NewPeerRouter(msg.PeerName, msg.AppName)
 	switch msg.PktType {
 	case OnlinePktType:
-		c.delegate.Register(nil, pr, "")
+		err = c.delegate.Register(msg.Paths, pr, "")
 	case OfflinePktType:
 		c.delegate.UnRegister(pr)
 	}
-	
-	return c.delegate.Register(nil, pr, "")
+
+	if err != nil {
+		resp.Code = 500
+	}
+	return
 }
 
 // Ping 集群内部接口，供远端主节点调用rpc.Client.Call("Cluster.Ping"...

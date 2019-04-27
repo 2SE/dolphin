@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"encoding/ascii85"
+	"github.com/2se/dolphin/core"
 	"github.com/golang/protobuf/proto"
 	"hash/fnv"
 	"sort"
@@ -21,6 +22,7 @@ type RequestPkt struct {
 	// 发送这条请求的节点名称
 	PeerName string
 	AppName  string
+	Paths    []core.MethodPath
 	PktType  PktType
 	// Ring hash signature of the node sending this request
 	// Signature must match the signature of the receiver, otherwise the
