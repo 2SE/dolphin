@@ -2,28 +2,10 @@ package router
 
 import (
 	"fmt"
-	"github.com/2se/dolphin/config"
 	"github.com/2se/dolphin/core"
-	"github.com/golang/protobuf/proto"
+	"github.com/2se/dolphin/mock"
 	"testing"
-	"time"
 )
-
-type mockCluster struct {
-}
-
-func (*mockCluster) Name() string {
-	return "mock"
-}
-func (*mockCluster) SetRouter(core.Router) {
-
-}
-func (*mockCluster) Notify(core.PeerRouter, ...core.MethodPath) {
-
-}
-func (*mockCluster) Request(core.PeerRouter, proto.Message) (proto.Message, error) {
-	return nil, nil
-}
 
 type mockRouter interface {
 	ListTopicPeers() map[string]*core.PeerRouters
@@ -31,13 +13,7 @@ type mockRouter interface {
 
 func TestResourcesPool_RegiserSubResources(t *testing.T) {
 	//run dolphin/cmd/example/server.go fisrt
-	mockPeer := &mockCluster{}
-	route := Init(mockPeer, &config.RouteConfig{
-		Recycle:   config.Duration{time.Second * 60},
-		Threshold: 10,
-		Timeout:   config.Duration{time.Second * 2},
-	})
-	err := route.Register([]core.MethodPath{
+	err := mock.MockRoute.Register([]core.MethodPath{
 		core.NewMethodPath("1", "2", "3"),
 		core.NewMethodPath("1", "3", "3"),
 		core.NewMethodPath("1", "4", "3"),
@@ -49,10 +25,10 @@ func TestResourcesPool_RegiserSubResources(t *testing.T) {
 	} else {
 		fmt.Println("register1 successed")
 	}
-	err = route.Register([]core.MethodPath{
+	err = mock.MockRoute.Register([]core.MethodPath{
 		core.NewMethodPath("1", "2", "3"),
 		core.NewMethodPath("1", "3", "3"),
-		core.NewMethodPath("1", "4", "3"),
+		core.NewMethodPath("2", "4", "3"),
 	},
 		core.NewPeerRouter("", "app2"),
 		"127.0.0.1:16013")
@@ -61,7 +37,7 @@ func TestResourcesPool_RegiserSubResources(t *testing.T) {
 	} else {
 		fmt.Println("register1 successed")
 	}
-	for k, v := range route.(mockRouter).ListTopicPeers() {
+	for k, v := range mock.MockRoute.(mockRouter).ListTopicPeers() {
 		fmt.Println("key:", k)
 		for _, vi := range *v {
 			fmt.Printf("peerRouter:%s \n", vi.String())

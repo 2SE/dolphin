@@ -34,7 +34,7 @@ func RegistryHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 	}
 
-	mps := make([]core.MethodPath, len(appInfo.Methods))
+	mps := make([]core.MethodPath, 0, len(appInfo.Methods))
 	for _, v := range appInfo.Methods {
 		mps = append(mps, core.NewMethodPath(v.Reversion, v.Resource, v.Action))
 	}

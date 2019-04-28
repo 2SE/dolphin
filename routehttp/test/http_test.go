@@ -4,23 +4,20 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	_ "github.com/2se/dolphin/mock"
 	"github.com/2se/dolphin/routehttp"
 	"io/ioutil"
 	"net/http"
 	"testing"
 )
 
-/*func TestRouteHttpStart(t *testing.T) {
-	//route.InitRoute("123")
-	routehttp.Start("127.0.0.1:10086")
-}*/
-
 func TestRouteHttpTest(t *testing.T) {
-
+	//run dolphin/cmd/example/server.go fisrt
+	routehttp.Start("127.0.0.1:10086")
 	appInfo := &routehttp.AppInfo{
-		PeerName: "peer",
+		PeerName: "",
 		AppName:  "app",
-		Address:  "127.0.0.1:10087",
+		Address:  "127.0.0.1:16012",
 		Methods: []routehttp.MP{
 			{"1", "2", "3"},
 			{"1", "2", "4"},
