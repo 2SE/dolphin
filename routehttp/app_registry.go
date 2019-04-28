@@ -39,7 +39,7 @@ func RegistryHandler(w http.ResponseWriter, r *http.Request) {
 		mps = append(mps, core.NewMethodPath(v.Reversion, v.Resource, v.Action))
 	}
 
-	pr := core.NewPeerRouter(appInfo.AppName, "")
+	pr := core.NewPeerRouter("", appInfo.AppName)
 	err = router.Register(mps, pr, appInfo.Address)
 	w.WriteHeader(http.StatusOK)
 	if err != nil {

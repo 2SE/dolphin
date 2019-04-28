@@ -29,7 +29,7 @@ func (s *resourcesPool) TryAddClient(address string) error {
 	}
 	appCli := pb.NewAppServeClient(conn)
 	s.clients[address] = appCli
-	return ErrGprcServerConnFailed
+	return nil
 }
 
 func (s *resourcesPool) RemoveClient(address string) {
@@ -54,7 +54,6 @@ func (s *resourcesPool) callAppAction(address string, request proto.Message) (*p
 			"errCode":   st.Code(),
 		}).Errorln(err.Error())
 	}
-
 	return resp, err
 }
 

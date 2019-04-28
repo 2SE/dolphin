@@ -22,29 +22,31 @@ var (
 	ErrGprcServerConnFailed = errors.New("route: connection to grpc server failed")
 )
 
-const logFieldKey = "route"
+const logFieldKey = "router"
 
 // 初始化本地route
 // peer 本地cluster 编号
 func Init(localPeer core.LocalPeer, cnf *config.RouteConfig) core.Router {
 	r = &resourcesPool{
 		localPeer:  localPeer,
+		pRAddr:     make(map[string]string),
+		addrPR:     make(map[string]core.PeerRouter),
+		connErr:    make(map[string]int16),
 		topicPeers: make(map[string]*core.PeerRouters),
+		clients:    make(map[string]pb.AppServeClient),
 		ring:       make(map[string]*ringhash.Ring),
-		//appAddr:    make(map[string]string),
-		recycle:   cnf.Recycle.Duration,
-		threshold: cnf.Threshold,
-		timeout:   cnf.Timeout.Duration,
+		recycle:    cnf.Recycle.Duration,
+		threshold:  cnf.Threshold,
+		timeout:    cnf.Timeout.Duration,
 	}
 	return r
 }
 
 type resourcesPool struct {
-	localPeer core.LocalPeer
-	pRAddr    map[string]string          //key:core.PeerRouter val:address (only save local app)
-	addrPR    map[string]core.PeerRouter //key:address val:appname
-	connErr   map[string]int16           //key address val:count the err count in a period time for client send request
-
+	localPeer  core.LocalPeer
+	pRAddr     map[string]string            //key:core.PeerRouter val:address (only save local app)
+	addrPR     map[string]core.PeerRouter   //key:address val:appname
+	connErr    map[string]int16             //key address val:count the err count in a period time for client send request
 	topicPeers map[string]*core.PeerRouters //key: core.MethodPath
 	clients    map[string]pb.AppServeClient //key:address val:grpcClient (only save local app)
 	ring       map[string]*ringhash.Ring    //key: core.MethodPath
@@ -66,16 +68,16 @@ func (s *resourcesPool) Register(mps []core.MethodPath, pr core.PeerRouter, addr
 			}).Errorln(err)
 			return err
 		}
+		s.addrPR[address] = pr
+		s.pRAddr[pr.String()] = address
 	}
-	s.addrPR[address] = pr
-	s.pRAddr[pr.String()] = address
 	for _, mp := range mps {
 		if s.topicPeers[mp.String()] == nil {
 			s.topicPeers[mp.String()] = &core.PeerRouters{}
 		}
 		flag := true
 		for _, peerRoute := range *s.topicPeers[mp.String()] {
-			if pr == peerRoute {
+			if pr.String() == peerRoute.String() {
 				flag = false
 				break
 			}
@@ -85,7 +87,6 @@ func (s *resourcesPool) Register(mps []core.MethodPath, pr core.PeerRouter, addr
 			s.topicPeers[mp.String()].Sort()
 		}
 	}
-
 	s.localPeer.Notify(pr, mps...)
 	return nil
 }
@@ -109,7 +110,6 @@ func (s *resourcesPool) UnRegisterApp(pr core.PeerRouter) {
 		delete(s.addrPR, address)
 		s.RemoveClient(address)
 	}
-
 	s.localPeer.Notify(pr)
 }
 
@@ -131,7 +131,6 @@ func (s *resourcesPool) RouteIn(mp core.MethodPath, id string, request proto.Mes
 		ring.Add(keys...)
 		s.ring[mp.String()] = ring
 	}
-
 	peer := s.ring[mp.String()].Get(id)
 	pa, err := psr.FindOne(peer)
 	if err != nil {
@@ -140,7 +139,6 @@ func (s *resourcesPool) RouteIn(mp core.MethodPath, id string, request proto.Mes
 		}).Warnf("peer %s not exists\n", peer)
 		return nil, err
 	}
-
 	return s.localPeer.Request(pa, request)
 }
 

@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	ErrPeerNotFound = errors.New("common: peer not found")
+	ErrPeerNotFound = errors.New("core: peer not found")
 )
 
 const (
@@ -66,7 +66,7 @@ func (m *methodPath) String() string {
 		buffer := bytes.NewBuffer(nil)
 		buffer.WriteString(m.Version)
 		buffer.WriteRune(spilt)
-		buffer.WriteString(m.Action)
+		buffer.WriteString(m.Resource)
 		buffer.WriteRune(spilt)
 		buffer.WriteString(m.Action)
 		m.buff = buffer.String()
