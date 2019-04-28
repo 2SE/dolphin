@@ -7,6 +7,7 @@ import (
 	"github.com/2se/dolphin/core/router"
 	"io/ioutil"
 	"net/http"
+	"time"
 )
 
 type AppInfo struct {
@@ -50,7 +51,12 @@ func RegistryHandler(w http.ResponseWriter, r *http.Request) {
 func Start(address string) {
 	http.HandleFunc("/", RegistryHandler)
 	fmt.Println("servers start")
-	err := http.ListenAndServe(address, nil)
+	server := &http.Server{
+		Addr:         address,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+	}
+	err := server.ListenAndServe()
 	if err != nil {
 		panic(fmt.Errorf("ListenAndServe: %v", err))
 	}

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/2se/dolphin/event"
 	"github.com/segmentio/kafka-go"
-	"io/ioutil"
 	"testing"
 )
 
@@ -19,6 +18,7 @@ func (t *TestTopic) GetTopic() string {
 var tpc = &TestTopic{"hashhash"}
 
 func TestConsumerEvent(t *testing.T) {
+
 	emitter := event.NewEmitter(2)
 	offsetRecoder.start()
 	_, eve := emitter.Subscribe(tpc)
@@ -29,12 +29,8 @@ func TestConsumerEvent(t *testing.T) {
 		})
 		consumerTopic(reader, emitter)
 	}()
-
 	for c := range eve {
 		fmt.Printf("key:%s val:%s\n", c.GetMetaData(), c.GetData())
+		break
 	}
-}
-
-func TestWriteLog(t *testing.T) {
-	ioutil.WriteFile("./kfk.log", []byte("hello world"), 0644)
 }

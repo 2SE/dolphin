@@ -121,7 +121,6 @@ func (s *resourcesPool) RouteIn(mp core.MethodPath, id string, request proto.Mes
 		}).Warnf("methodpath %s not found\n", mp.String())
 		return nil, ErrMethodPathNotFound
 	}
-
 	if _, ok := s.ring[mp.String()]; !ok {
 		keys := make([]string, 0, psr.Len())
 		for _, v := range *psr {

@@ -1,11 +1,10 @@
-package test
+package routehttp
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
 	_ "github.com/2se/dolphin/mock"
-	"github.com/2se/dolphin/routehttp"
 	"io/ioutil"
 	"net/http"
 	"testing"
@@ -13,12 +12,12 @@ import (
 
 func TestRouteHttpTest(t *testing.T) {
 	//run dolphin/cmd/example/server.go fisrt
-	routehttp.Start("127.0.0.1:10086")
-	appInfo := &routehttp.AppInfo{
+	go Start("127.0.0.1:10086")
+	appInfo := &AppInfo{
 		PeerName: "",
 		AppName:  "app",
 		Address:  "127.0.0.1:16012",
-		Methods: []routehttp.MP{
+		Methods: []MP{
 			{"1", "2", "3"},
 			{"1", "2", "4"},
 			{"1", "2", "5"},

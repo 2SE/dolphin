@@ -6,6 +6,7 @@ import (
 )
 
 var (
+	//用于引用cluster包，但是执行逻辑中不依赖cluster的模拟测试数据
 	MockCluster = new(mockCluster)
 )
 
