@@ -1,14 +1,13 @@
 package ws
 
 import (
-	"context"
+	"flag"
 	"github.com/2se/dolphin/config"
 	"github.com/2se/dolphin/pb"
-	"github.com/gobwas/ws"
-	"github.com/gobwas/ws/wsutil"
 	"github.com/golang/protobuf/proto"
+	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
-	"net"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -37,6 +36,7 @@ func TestListenAndServe(t *testing.T) {
 	reqDataByte, _ := proto.Marshal(reqData)
 	go client(reqDataByte)
 	ListenAndServe(signalHandler())
+
 }
 
 func signalHandler() <-chan bool {
@@ -57,19 +57,21 @@ func signalHandler() <-chan bool {
 }
 
 func client(data []byte) {
-	var conn net.Conn
+	var addr = flag.String("addr", "127.0.0.1:8081", "http service address")
+	u := url.URL{Scheme: "ws", Host: *addr, Path:"/ws"}
+	var conn *websocket.Conn
+
 	for {
-		dialer := ws.DefaultDialer
-
-		conn, _, _, _ = dialer.Dial(context.Background(), "ws://127.0.0.1:8081/ws")
-
-		if conn != nil {
-			log.Println("connect success to server:", "127.0.0.1:8081")
+		c, _, _ := websocket.DefaultDialer.Dial(u.String(), nil)
+		if c != nil {
+			log.Println("connect success to server:", *addr)
+			conn = c
 			break
 		}
 	}
 
-	err := wsutil.WriteClientMessage(conn, ws.OpBinary, data)
+
+	err := conn.WriteMessage(websocket.TextMessage, []byte(data))
 	if err != nil {
 		log.Error("send msg error", err)
 		return

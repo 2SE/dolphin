@@ -6,9 +6,8 @@ import (
 	"github.com/2se/dolphin/event"
 	"github.com/2se/dolphin/pb"
 	"github.com/golang/protobuf/proto"
+	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
-	"net"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -18,78 +17,157 @@ var (
 	wg      = new(sync.WaitGroup)
 )
 
-const HeartBeatEquation = 3000
-
 type SubscribeTopicer struct {
 	*pb.ClientComRequest
 }
 
 func (s *SubscribeTopicer) GetTopic() string {
-	return s.Meta.Key + "_" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	// todo
+	return s.Meta.Key
 }
 
-//func ParamBind(obj interface{}, r *http.Request) error {
-//	if err := r.ParseForm(); err != nil {
-//		return err
-//		// Handle error
-//	}
-//	if err := schema.NewDecoder().Decode(obj, r.Form); err != nil {
-//		return err
-//		// Handle error
-//	}
-//
-//	return nil
-//}
-
-func (w *WsServer) handleClientData(conn *net.Conn, msg []byte) {
-	var cli = &Client{conn: conn}
-
-	// login & get client id
-	if _, ok := w.Conns[conn]; !ok {
-		cli.ID = verifyData(msg)
-		w.AddCli <- cli
-	}
-	req := new(pb.ClientComRequest)
-	err := proto.Unmarshal(msg, req)
-	if err != nil {
-		log.Error("Ws: proto unmarsh msg error", err)
-	}
-
-	log.Println("unmashal msg", req)
-
-	wssub := &SubscribeTopicer{req}
-	// todo handle data
-	//log.Printf("Ws: got data, client is %s, data is %v", cli.ID, metaData)
-	//todo
-	mp := core.NewMethodPath(req.Meta.Revision, req.Meta.Resource, req.Meta.Action)
-	res, err := router.RouteIn(mp, cli.ID, req)
-	if err != nil {
-		// TODO
+func (w *WsServer) handleWsConnection(conn *websocket.Conn) {
+	if _, ok := w.id2Conns[conn]; ok {
 		return
 	}
-	data, err := proto.Marshal(res)
-	if err != nil {
-		// todo handle error
-		log.Error("Ws: marshal ServerComResponse data error", err)
-	}
-	cli.Message = data
-	w.SendMsg <- cli
+	cli := &Client{conn: conn}
+	w.AddCli <- cli
+}
 
-	if req.Meta.Key != "" {
-		log.Printf("Ws: client [%s] subscribe...", cli.ID)
-		// subscribe
-		subPid, event := Emmiter.Subscribe(wssub)
-		log.Printf("Ws: client [%s] subscribe success, subPid is [%s]", cli.ID, subPid)
-		subscribe := &Subscribe{event, nil, subPid, req.Meta.Key, cli}
-		w.Subscribe <- subscribe
+// 读websocket
+func (w *WsServer) readLoop(cli *Client) {
+	for {
+		msgType, msgData, err := cli.conn.ReadMessage()
+		if err != nil {
+			log.Error("ws: readLoop got error", err)
+			//w.DelCli <- cli
+			cli.closeChan <- true
+		}
+		msg := buildWSMessage(msgType, msgData)
+		select {
+		case cli.inChan <- msg:
+			log.Println("333333333333")
+		case <-cli.closeChan:
+			log.Println("4444444444444")
+			goto CLOSED
+		default:
+			cli.inChan <- msg
+		}
+	}
+CLOSED:
+}
+
+// 写websocket
+func (w *WsServer) writeLoop(cli *Client) {
+	var (
+		message *WSMessage
+		err     error
+	)
+	for {
+		select {
+		case message = <-cli.outChan:
+			if err = cli.conn.WriteMessage(message.MsgType, message.MsgData); err != nil {
+				log.Error("ws: writeLoop error", err)
+				cli.closeChan <- true
+			}
+		case <-cli.closeChan:
+			goto CLOSED
+		}
+	}
+CLOSED:
+}
+
+func buildWSMessage(msgType int, msgData []byte) (wsMessage *WSMessage) {
+	return &WSMessage{
+		MsgType: msgType,
+		MsgData: msgData,
 	}
 }
 
-// todo =====================================
-func verifyData(msg []byte) string {
-	return strconv.FormatInt(time.Now().Unix(), 10)
+func (w *WsServer) handleClientData(cli *Client) {
+	cli.conn.SetReadDeadline(time.Now().Add(pongWait))
+	for {
+		select {
+		case msg := <-cli.inChan:
+			w.handleData(cli, msg)
+		case <-cli.closeChan:
+			goto CLOSED
+		}
+	}
+CLOSED:
 }
 
-//func createTopic(revision, resource, act string) *TestTopic {
-//	return &TestTopic{revision, resource, act}
-//}
+func (w *WsServer) handleData(cli *Client, msg *WSMessage) {
+	switch msg.MsgType {
+	case websocket.PingMessage:
+		w.handlePing(cli)
+	case websocket.BinaryMessage, websocket.TextMessage:
+		req := new(pb.ClientComRequest)
+		err := proto.Unmarshal(msg.MsgData, req)
+		if err != nil {
+			log.Error("Ws: proto unmarsh msg error", err)
+		}
+
+		log.Println("unmashal msg", req)
+
+		wssub := &SubscribeTopicer{req}
+		// todo handle data
+		//log.Printf("Ws: got data, client is %s, data is %v", cli.ID, metaData)
+		// todo
+		mp := core.NewMethodPath(req.Meta.Revision, req.Meta.Resource, req.Meta.Action)
+		res, err := router.RouteIn(mp, cli.ID, req)
+		if err != nil {
+			// TODO
+			log.Error("ws: router in error", err)
+			return
+		}
+		data, err := proto.Marshal(res)
+		if err != nil {
+			// todo handle error
+			log.Error("Ws: marshal ServerComResponse data error", err)
+		}
+		cli.outChan <- &WSMessage{websocket.BinaryMessage, data}
+		// 订阅
+		if req.Meta.Key != "" {
+			log.Printf("Ws: client [%s] subscribe...", cli.ID)
+			// subscribe
+			subPid, event := Emmiter.Subscribe(wssub)
+			log.Printf("Ws: client [%s] subscribe success, subPid is [%s]", cli.ID, subPid)
+			subscribe := &Subscribe{event, nil, subPid, req.Meta.Key, cli.conn}
+			w.Subscribe <- subscribe
+		}
+	default:
+	}
+}
+
+func (w *WsServer) handlePing(cli *Client) {
+	msg := &WSMessage{websocket.PongMessage, nil}
+	w.m.Unlock()
+	defer w.m.Lock()
+	w.Clients[w.id2Conns[cli.conn]].Timestamp = time.Now().UnixNano() / 1e6
+	cli.sendMsg(msg)
+}
+
+func (cli *Client) sendMsg(msg *WSMessage) {
+	select {
+	case cli.outChan <- msg:
+		log.Println("ws: send message success")
+	case <-cli.closeChan:
+		log.Errorf("ws: Client [%s] connection had been closed", cli.ID)
+	default:
+		log.Println("ws: send message but buffer is full")
+	}
+}
+
+func (w *WsServer) handlePush(cli *Client) {
+	cli.conn.SetWriteDeadline(time.Now().Add(writeWait))
+	for {
+		select {
+		case msg := <-cli.outChan:
+			cli.sendMsg(msg)
+		case <- cli.closeChan:
+			goto CLOSED
+		}
+	}
+	CLOSED:
+}

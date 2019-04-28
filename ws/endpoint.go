@@ -112,14 +112,16 @@ Loop:
 }
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
+	ReadBufferSize:  ReadBufferSize,
+	WriteBufferSize: WriteBufferSize,
 	// Allow connections from any Origin
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
+// serveWebsocket handle websocket request
 func (w *WsServer) serveWebsocket(writer http.ResponseWriter, req *http.Request) {
-	ws, err := upgrader.Upgrade(writer, req, nil)
+	// handle websocket handshake
+	conn, err := upgrader.Upgrade(writer, req, nil)
 	if _, ok := err.(websocket.HandshakeError); ok {
 		log.Println("ws: Not a websocket handshake")
 		return
@@ -127,7 +129,8 @@ func (w *WsServer) serveWebsocket(writer http.ResponseWriter, req *http.Request)
 		log.Println("ws: failed to Upgrade ", err)
 		return
 	}
-
+	// handle websocket connection
+	w.handleWsConnection(conn)
 }
 
 func makeTls(cnf *config.WsTlsConfig) (*tls.Config, error) {
