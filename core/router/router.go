@@ -114,6 +114,8 @@ func (s *resourcesPool) UnRegisterApp(pr core.PeerRouter) {
 }
 
 func (s *resourcesPool) RouteIn(mp core.MethodPath, id string, request proto.Message) (response proto.Message, err error) {
+	s.m.RLock()
+	defer s.m.RUnlock()
 	psr, ok := s.topicPeers[mp.String()]
 	if !ok {
 		log.WithFields(log.Fields{
