@@ -3,6 +3,7 @@ package ws
 import (
 	"flag"
 	"github.com/2se/dolphin/config"
+	_ "github.com/2se/dolphin/mock"
 	"github.com/2se/dolphin/pb"
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/websocket"
@@ -12,7 +13,6 @@ import (
 	"os/signal"
 	"syscall"
 	"testing"
-	_ "github.com/2se/dolphin/mock"
 )
 
 func TestListenAndServe(t *testing.T) {
@@ -59,9 +59,8 @@ func signalHandler() <-chan bool {
 
 func client(data []byte) {
 	var addr = flag.String("addr", "127.0.0.1:8081", "http service address")
-	u := url.URL{Scheme: "ws", Host: *addr, Path:"/ws"}
+	u := url.URL{Scheme: "ws", Host: *addr, Path: "/ws"}
 	var conn *websocket.Conn
-
 	for {
 		c, _, _ := websocket.DefaultDialer.Dial(u.String(), nil)
 		if c != nil {
@@ -70,7 +69,6 @@ func client(data []byte) {
 			break
 		}
 	}
-
 
 	err := conn.WriteMessage(websocket.TextMessage, []byte(data))
 	if err != nil {

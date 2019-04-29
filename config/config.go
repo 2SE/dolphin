@@ -44,12 +44,14 @@ type ClusterFailoverConfig struct {
 }
 
 type WebsocketConfig struct {
-	Listen       string       `toml:"listen"`
-	ReadBufSize  int          `toml:"read_buf_size"`
-	WriteBufSize int          `toml:"write_buf_size"`
-	GrpcListen   string       `toml:"grpc_listen"`
-	Expvar       string       `toml:"expvar"`
-	Tls          *WsTlsConfig `toml:"tls"`
+	Listen       string        `toml:"listen"`
+	ReadBufSize  int           `toml:"read_buf_size"`
+	WriteBufSize int           `toml:"write_buf_size"`
+	GrpcListen   string        `toml:"grpc_listen"`
+	Expvar       string        `toml:"expvar"`
+	Tls          *WsTlsConfig  `toml:"tls"`
+	WriteWait    time.Duration `toml:"write_time_wait"`
+	ReadWait     time.Duration `toml:"read_time_wait"`
 }
 
 type WsTlsConfig struct {
