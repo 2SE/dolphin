@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"syscall"
 	"testing"
+	_ "github.com/2se/dolphin/mock"
 )
 
 func TestListenAndServe(t *testing.T) {

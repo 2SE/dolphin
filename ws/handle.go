@@ -6,6 +6,7 @@ import (
 	"github.com/2se/dolphin/event"
 	"github.com/2se/dolphin/pb"
 	"github.com/golang/protobuf/proto"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 	"sync"
@@ -36,6 +37,7 @@ func (w *WsServer) handleWsConnection(conn *websocket.Conn) {
 
 // 读websocket
 func (w *WsServer) readLoop(cli *Client) {
+	cli.conn.SetReadDeadline(time.Now().Add(pongWait))
 	for {
 		msgType, msgData, err := cli.conn.ReadMessage()
 		if err != nil {
@@ -46,9 +48,7 @@ func (w *WsServer) readLoop(cli *Client) {
 		msg := buildWSMessage(msgType, msgData)
 		select {
 		case cli.inChan <- msg:
-			log.Println("333333333333")
 		case <-cli.closeChan:
-			log.Println("4444444444444")
 			goto CLOSED
 		default:
 			cli.inChan <- msg
@@ -59,6 +59,7 @@ CLOSED:
 
 // 写websocket
 func (w *WsServer) writeLoop(cli *Client) {
+	cli.conn.SetWriteDeadline(time.Now().Add(writeWait))
 	var (
 		message *WSMessage
 		err     error
@@ -109,9 +110,11 @@ func (w *WsServer) handleData(cli *Client, msg *WSMessage) {
 		}
 
 		log.Println("unmashal msg", req)
-
+		if cli.ID == "" {
+			// todo handle clientId
+			cli.ID = verifyMsg(req.Meta.Signature)
+		}
 		wssub := &SubscribeTopicer{req}
-		// todo handle data
 		//log.Printf("Ws: got data, client is %s, data is %v", cli.ID, metaData)
 		// todo
 		mp := core.NewMethodPath(req.Meta.Revision, req.Meta.Resource, req.Meta.Action)
@@ -136,15 +139,12 @@ func (w *WsServer) handleData(cli *Client, msg *WSMessage) {
 			subscribe := &Subscribe{event, nil, subPid, req.Meta.Key, cli.conn}
 			w.Subscribe <- subscribe
 		}
-	default:
 	}
 }
 
 func (w *WsServer) handlePing(cli *Client) {
 	msg := &WSMessage{websocket.PongMessage, nil}
-	w.m.Unlock()
-	defer w.m.Lock()
-	w.Clients[w.id2Conns[cli.conn]].Timestamp = time.Now().UnixNano() / 1e6
+	w.KeepAlive(cli)
 	cli.sendMsg(msg)
 }
 
@@ -159,15 +159,18 @@ func (cli *Client) sendMsg(msg *WSMessage) {
 	}
 }
 
-func (w *WsServer) handlePush(cli *Client) {
-	cli.conn.SetWriteDeadline(time.Now().Add(writeWait))
-	for {
-		select {
-		case msg := <-cli.outChan:
-			cli.sendMsg(msg)
-		case <- cli.closeChan:
-			goto CLOSED
-		}
-	}
-	CLOSED:
+func verifyMsg(msg string) string{
+	return uuid.New().String()
 }
+//func (w *WsServer) handlePush(cli *Client) {
+//	cli.conn.SetWriteDeadline(time.Now().Add(writeWait))
+//	for {
+//		select {
+//		case msg := <-cli.outChan:
+//			cli.sendMsg(msg)
+//		case <- cli.closeChan:
+//			goto CLOSED
+//		}
+//	}
+//	CLOSED:
+//}

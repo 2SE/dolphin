@@ -96,7 +96,7 @@ func (w *WsServer) addClient(c *Client){
 	go w.readLoop(c)
 	go w.writeLoop(c)
 	go w.handleClientData(c)
-	go w.handlePush(c)
+	go w.HandleHeartBeatCheck(c)
 }
 
 // delClient delete the ws client from session by clientId
@@ -161,12 +161,42 @@ func (w *WsServer) unSubscribe(c *Client) {
 }
 
 // HandleHeartBeat handle websocket heart beat
-func (w *WsServer) HandleHeartBeat(equation_ms int64) {
-	clients := w.Clients
-	for _, v := range clients {
-		if time.Now().UnixNano()/1e6-v.Timestamp > equation_ms{
-			w.DelCli <- v
-			w.unSubscribe(v)
+func (w *WsServer) HandleHeartBeatCheck(cli *Client) {
+	var (
+		timer *time.Timer
+	)
+	timer = time.NewTimer(pongWait)
+	for {
+		select {
+		case <- timer.C:
+			if !w.IsAlive(cli) {
+				w.DelCli <- cli
+				goto EXIT
+			}
+			timer.Reset(pongWait)
+		case <- cli.closeChan:
+			timer.Stop()
+			goto EXIT
 		}
 	}
+
+EXIT:
+}
+
+func (w *WsServer) IsAlive(cli *Client) bool {
+	w.m.Lock()
+	defer w.m.Unlock()
+	if time.Now().UnixNano()/1e6-cli.Timestamp > HeartBeatEquation {
+		return false
+	}
+	return true
+}
+
+func (w *WsServer)KeepAlive(cli *Client) {
+	w.m.Lock()
+	defer w.m.Unlock()
+	if _, ok := w.id2Conns[cli.conn]; ok {
+		w.Clients[w.id2Conns[cli.conn]].Timestamp = time.Now().UnixNano() / 1e6
+	}
+
 }

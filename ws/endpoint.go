@@ -24,7 +24,7 @@ type WebsocketEndpoint struct {
 func Init(cnf *config.WebsocketConfig) {
 	w := NewWsServer()
 	go w.Start()
-	go w.HandleHeartBeat(HeartBeatEquation)
+	//go w.HandleHeartBeat(HeartBeatEquation)
 	// Set up HTTP server. Must use non-default mux because of expvar.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", w.serveWebsocket)
