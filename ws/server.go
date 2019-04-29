@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"github.com/2se/dolphin/common/timer"
 	"github.com/2se/dolphin/event"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -163,19 +164,19 @@ func (w *WsServer) unSubscribe(c *Client) {
 // HandleHeartBeat handle websocket heart beat
 func (w *WsServer) HandleHeartBeatCheck(cli *Client) {
 	var (
-		timer *time.Timer
+		//timer *time.Timer
+		tick *timer.TimingWheel
 	)
-	timer = time.NewTimer(pongWait)
+	tick = timer.NewTimingWheel(time.Second, 30)
 	for {
 		select {
-		case <- timer.C:
+		case <-tick.After(time.Second):
 			if !w.IsAlive(cli) {
 				w.DelCli <- cli
 				goto EXIT
 			}
-			timer.Reset(pongWait)
 		case <- cli.closeChan:
-			timer.Stop()
+			tick.Stop()
 			goto EXIT
 		}
 	}
@@ -184,8 +185,8 @@ EXIT:
 }
 
 func (w *WsServer) IsAlive(cli *Client) bool {
-	w.m.Lock()
-	defer w.m.Unlock()
+	w.m.RLock()
+	defer w.m.RUnlock()
 	if time.Now().UnixNano()/1e6-cli.Timestamp > HeartBeatEquation {
 		return false
 	}

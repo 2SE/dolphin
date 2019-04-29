@@ -19,12 +19,12 @@ var (
 type WebsocketEndpoint struct {
 	server       *http.Server
 	httpRedirect string
+	cfg          *config.WebsocketConfig
 }
 
 func Init(cnf *config.WebsocketConfig) {
 	w := NewWsServer()
 	go w.Start()
-	//go w.HandleHeartBeat(HeartBeatEquation)
 	// Set up HTTP server. Must use non-default mux because of expvar.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", w.serveWebsocket)
@@ -43,7 +43,7 @@ func Init(cnf *config.WebsocketConfig) {
 
 		server.TLSConfig = tlsConfig
 	}
-	Endpoint = &WebsocketEndpoint{server: server}
+	Endpoint = &WebsocketEndpoint{server: server, cfg: cnf}
 }
 
 func ListenAndServe(stop <-chan bool) error {
@@ -111,15 +111,14 @@ Loop:
 	return nil
 }
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  ReadBufferSize,
-	WriteBufferSize: WriteBufferSize,
-	// Allow connections from any Origin
-	CheckOrigin: func(r *http.Request) bool { return true },
-}
-
 // serveWebsocket handle websocket request
 func (w *WsServer) serveWebsocket(writer http.ResponseWriter, req *http.Request) {
+	var upgrader = websocket.Upgrader{
+		ReadBufferSize:  Endpoint.cfg.ReadBufSize,
+		WriteBufferSize: Endpoint.cfg.WriteBufSize,
+		// Allow connections from any Origin
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
 	// handle websocket handshake
 	conn, err := upgrader.Upgrade(writer, req, nil)
 	if _, ok := err.(websocket.HandshakeError); ok {

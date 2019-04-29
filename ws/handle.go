@@ -16,6 +16,7 @@ import (
 var (
 	Emmiter = event.NewEmitter(2)
 	wg      = new(sync.WaitGroup)
+	readWait int64
 )
 
 type SubscribeTopicer struct {
@@ -37,14 +38,13 @@ func (w *WsServer) handleWsConnection(conn *websocket.Conn) {
 
 // 读websocket
 func (w *WsServer) readLoop(cli *Client) {
-	cli.conn.SetReadDeadline(time.Now().Add(pongWait))
 	for {
 		msgType, msgData, err := cli.conn.ReadMessage()
 		if err != nil {
-			log.Error("ws: readLoop got error", err)
-			//w.DelCli <- cli
+			log.Error("ws: readLoop got error ", err)
 			cli.closeChan <- true
 		}
+		cli.conn.SetReadDeadline(time.Now().Add(Endpoint.cfg.ReadWait*time.Second))
 		msg := buildWSMessage(msgType, msgData)
 		select {
 		case cli.inChan <- msg:
@@ -59,7 +59,6 @@ CLOSED:
 
 // 写websocket
 func (w *WsServer) writeLoop(cli *Client) {
-	cli.conn.SetWriteDeadline(time.Now().Add(writeWait))
 	var (
 		message *WSMessage
 		err     error
@@ -67,6 +66,7 @@ func (w *WsServer) writeLoop(cli *Client) {
 	for {
 		select {
 		case message = <-cli.outChan:
+			cli.conn.SetWriteDeadline(time.Now().Add(Endpoint.cfg.WriteWait*time.Second))
 			if err = cli.conn.WriteMessage(message.MsgType, message.MsgData); err != nil {
 				log.Error("ws: writeLoop error", err)
 				cli.closeChan <- true
@@ -86,10 +86,10 @@ func buildWSMessage(msgType int, msgData []byte) (wsMessage *WSMessage) {
 }
 
 func (w *WsServer) handleClientData(cli *Client) {
-	cli.conn.SetReadDeadline(time.Now().Add(pongWait))
 	for {
 		select {
 		case msg := <-cli.inChan:
+			cli.conn.SetReadDeadline(time.Now().Add(Endpoint.cfg.ReadWait*time.Second))
 			w.handleData(cli, msg)
 		case <-cli.closeChan:
 			goto CLOSED
@@ -114,28 +114,27 @@ func (w *WsServer) handleData(cli *Client, msg *WSMessage) {
 			// todo handle clientId
 			cli.ID = verifyMsg(req.Meta.Signature)
 		}
-		wssub := &SubscribeTopicer{req}
-		//log.Printf("Ws: got data, client is %s, data is %v", cli.ID, metaData)
-		// todo
+
 		mp := core.NewMethodPath(req.Meta.Revision, req.Meta.Resource, req.Meta.Action)
 		res, err := router.RouteIn(mp, cli.ID, req)
 		if err != nil {
-			// TODO
+			// TODO handle error
 			log.Error("ws: router in error", err)
 			return
 		}
 		data, err := proto.Marshal(res)
 		if err != nil {
 			// todo handle error
-			log.Error("Ws: marshal ServerComResponse data error", err)
+			log.Error("ws: marshal ServerComResponse data error", err)
 		}
-		cli.outChan <- &WSMessage{websocket.BinaryMessage, data}
+		cli.sendMsg(&WSMessage{websocket.BinaryMessage, data})
 		// 订阅
 		if req.Meta.Key != "" {
-			log.Printf("Ws: client [%s] subscribe...", cli.ID)
+			wssub := &SubscribeTopicer{req}
+			log.Printf("ws: client [%s] subscribe...", cli.ID)
 			// subscribe
 			subPid, event := Emmiter.Subscribe(wssub)
-			log.Printf("Ws: client [%s] subscribe success, subPid is [%s]", cli.ID, subPid)
+			log.Printf("ws: client [%s] subscribe success, subPid is [%s]", cli.ID, subPid)
 			subscribe := &Subscribe{event, nil, subPid, req.Meta.Key, cli.conn}
 			w.Subscribe <- subscribe
 		}
@@ -151,26 +150,13 @@ func (w *WsServer) handlePing(cli *Client) {
 func (cli *Client) sendMsg(msg *WSMessage) {
 	select {
 	case cli.outChan <- msg:
-		log.Println("ws: send message success")
 	case <-cli.closeChan:
-		log.Errorf("ws: Client [%s] connection had been closed", cli.ID)
-	default:
-		log.Println("ws: send message but buffer is full")
+		cli.conn.Close()
+		return
 	}
 }
 
+// todo mock get clientId
 func verifyMsg(msg string) string{
 	return uuid.New().String()
 }
-//func (w *WsServer) handlePush(cli *Client) {
-//	cli.conn.SetWriteDeadline(time.Now().Add(writeWait))
-//	for {
-//		select {
-//		case msg := <-cli.outChan:
-//			cli.sendMsg(msg)
-//		case <- cli.closeChan:
-//			goto CLOSED
-//		}
-//	}
-//	CLOSED:
-//}
