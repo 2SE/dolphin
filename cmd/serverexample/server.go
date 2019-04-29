@@ -54,9 +54,11 @@ func getId() int64 {
 	return id
 }
 func init() {
+	//总线服务地址
 	dolphinAddr = "127.0.0.1:10001"
 	appInfo.PeerName = ""
 	appInfo.AppName = "app1"
+	//本地服务地址
 	appInfo.Address = "127.0.0.1:10086"
 	appInfo.Methods = make([]*MP, 3)
 
