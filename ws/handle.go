@@ -48,6 +48,7 @@ func (w *WsServer) readLoop(cli *Client) {
 				log.Error("ws: readLoop got error ", err)
 			}
 			cli.closeChan <- true
+			goto CLOSED
 		}
 
 		msg := buildWSMessage(msgType, msgData)
