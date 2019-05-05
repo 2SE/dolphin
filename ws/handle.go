@@ -39,12 +39,17 @@ func (w *WsServer) handleWsConnection(conn *websocket.Conn) {
 // 读websocket
 func (w *WsServer) readLoop(cli *Client) {
 	for {
+		cli.conn.SetReadDeadline(time.Now().Add(Endpoint.cfg.ReadWait*time.Second))
 		msgType, msgData, err := cli.conn.ReadMessage()
 		if err != nil {
-			log.Error("ws: readLoop got error ", err)
+			if websocket.IsCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNoStatusReceived) {
+				log.Println("ws: client closed")
+			} else {
+				log.Error("ws: readLoop got error ", err)
+			}
 			cli.closeChan <- true
 		}
-		cli.conn.SetReadDeadline(time.Now().Add(Endpoint.cfg.ReadWait*time.Second))
+
 		msg := buildWSMessage(msgType, msgData)
 		select {
 		case cli.inChan <- msg:
@@ -55,6 +60,7 @@ func (w *WsServer) readLoop(cli *Client) {
 		}
 	}
 CLOSED:
+	w.DelCli <- cli
 }
 
 // 写websocket
@@ -76,6 +82,7 @@ func (w *WsServer) writeLoop(cli *Client) {
 		}
 	}
 CLOSED:
+	w.DelCli <- cli
 }
 
 func buildWSMessage(msgType int, msgData []byte) (wsMessage *WSMessage) {
@@ -127,7 +134,7 @@ func (w *WsServer) handleData(cli *Client, msg *WSMessage) {
 			// todo handle error
 			log.Error("ws: marshal ServerComResponse data error", err)
 		}
-		cli.sendMsg(&WSMessage{websocket.BinaryMessage, data})
+		cli.sendMsg(&WSMessage{websocket.TextMessage, data})
 		// 订阅
 		if req.Meta.Key != "" {
 			wssub := &SubscribeTopicer{req}

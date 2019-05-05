@@ -10,6 +10,12 @@ import (
 	"time"
 )
 
+// WSMessage websocket的Message对象
+type WSMessage struct {
+	MsgType int
+	MsgData []byte
+}
+
 // Client websocket client info
 type Client struct {
 	ID        string            // client id
@@ -80,7 +86,7 @@ func (w *WsServer) addClient(c *Client){
 	}
 	w.m.Lock()
 	defer w.m.Unlock()
-	c.Timestamp = time.Now().UnixNano() / 1e6
+	c.Timestamp = time.Now().UnixNano()
 	clientId, ok := w.id2Conns[c.conn]
 	if ok {
 		log.Printf("ws: add a new client, but Client [%s] already exists", clientId)
@@ -102,6 +108,7 @@ func (w *WsServer) addClient(c *Client){
 
 // delClient delete the ws client from session by clientId
 func (w *WsServer) delClient(c *Client) {
+
 	w.m.Lock()
 	defer func() {
 		w.m.Unlock()
@@ -109,7 +116,11 @@ func (w *WsServer) delClient(c *Client) {
 	}()
 
 	// cancel subscribe
-	w.unSubscribe(c)
+	for _, p := range c.pushers {
+		Emmiter.UnSubscribe(p.SubPid)
+		p.eventUnSubscribe <- true
+		delete(w.key2Pusher, p.SubKey)
+	}
 
 	if c.conn != nil {
 		delete(w.id2Conns, c.conn)
@@ -187,7 +198,7 @@ EXIT:
 func (w *WsServer) IsAlive(cli *Client) bool {
 	w.m.RLock()
 	defer w.m.RUnlock()
-	if time.Now().UnixNano()/1e6-cli.Timestamp > HeartBeatEquation {
+	if time.Now().UnixNano()-cli.Timestamp > int64((Endpoint.cfg.ReadWait+Endpoint.cfg.WriteWait) * time.Second) {
 		return false
 	}
 	return true
@@ -197,7 +208,7 @@ func (w *WsServer)KeepAlive(cli *Client) {
 	w.m.Lock()
 	defer w.m.Unlock()
 	if _, ok := w.id2Conns[cli.conn]; ok {
-		w.Clients[w.id2Conns[cli.conn]].Timestamp = time.Now().UnixNano() / 1e6
+		w.Clients[w.id2Conns[cli.conn]].Timestamp = time.Now().UnixNano()
 	}
 
 }
