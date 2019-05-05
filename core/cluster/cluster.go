@@ -36,6 +36,7 @@ var (
 	PeerUnavailableErr = errors.New("peer unavailable")
 
 	gwCluster *Cluster
+	localPeer *delegatedCluster
 
 	// peerConnCnf 集群内节点之间连接的配置
 	// 连接配置需要在集群模块初始化时进行初始化
@@ -176,24 +177,24 @@ func (d *delegatedCluster) UnRegister(pr core.PeerRouter) {
 // 如果是单实例模式，节点名称为local
 // 如果是集群模式，节点名称为配置文件中定义的本节点的名称
 // 如果未传入配置文件，返回错误，节点名称为空字符串
-func Init(cnf *config.ClusterConfig) (localPeer core.LocalPeer, err error) {
+func Init(cnf *config.ClusterConfig) (core.LocalPeer, error) {
 	log.Debug("cluster: starting init")
 	if cnf == nil {
 		log.Errorf("cluster: %s", NoConfigErr)
 		return nil, NoConfigErr
 	}
 
+	localPeer = &delegatedCluster{}
 	// Name of the current peer is not specified - disable clustering
 	if cnf.Self == "" {
 		log.Debug("cluster: config with a singleton mode.")
-		localPeer = &delegatedCluster{}
-		return
+		return localPeer, nil
 	}
 
 	gwCluster = &Cluster{
 		thisName: cnf.Self,
 		peers:    make(map[string]*peer),
-		delegate: &delegatedCluster{},
+		delegate: localPeer,
 	}
 
 	peerConnCnf = cnf.Connection
@@ -233,6 +234,7 @@ func Start(router core.Router) {
 	log.Debug("cluster: starting now...")
 	if gwCluster == nil {
 		log.Info("cluster: runing in singleton mode")
+		localPeer.router = router
 		return
 	}
 
