@@ -155,6 +155,19 @@ func (service *ExampleService) GetUser(c *pb.ClientComRequest) (*pb.ServerComRes
 }
 
 func main() {
+	go func() {
+		s1 := new(ExampleService)
+		l, err := net.Listen("tcp", appInfo.Address)
+		if err != nil {
+			panic(fmt.Errorf("tpc listen err:%v ", err))
+		}
+		defer l.Close()
+		svc := grpc.NewServer()
+		pb.RegisterAppServeServer(svc, s1)
+		if err := svc.Serve(l); err != nil {
+			panic(fmt.Errorf("failed to serve: %v", err))
+		}
+	}()
 	appJson, err := json.Marshal(appInfo)
 	if err != nil {
 		panic(fmt.Errorf("json marshal err:%s ", err.Error()))
@@ -170,15 +183,5 @@ func main() {
 	}
 	fmt.Println(string(body))
 
-	s1 := new(ExampleService)
-	l, err := net.Listen("tcp", appInfo.Address)
-	if err != nil {
-		panic(fmt.Errorf("tpc listen err:%v ", err))
-	}
-	defer l.Close()
-	svc := grpc.NewServer()
-	pb.RegisterAppServeServer(svc, s1)
-	if err := svc.Serve(l); err != nil {
-		panic(fmt.Errorf("failed to serve: %v", err))
-	}
+	select {}
 }

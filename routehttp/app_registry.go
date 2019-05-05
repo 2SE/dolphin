@@ -45,6 +45,8 @@ func RegistryHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	if err != nil {
 		w.Write([]byte(err.Error()))
+	} else {
+		w.Write([]byte("register"))
 	}
 }
 
