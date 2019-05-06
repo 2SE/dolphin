@@ -29,9 +29,11 @@ func (s *SubscribeTopicer) GetTopic() string {
 }
 
 func (w *WsServer) handleWsConnection(conn *websocket.Conn) {
+	w.m.RLock()
 	if _, ok := w.id2Conns[conn]; ok {
 		return
 	}
+	w.m.RUnlock()
 	cli := &Client{conn: conn}
 	w.AddCli <- cli
 }

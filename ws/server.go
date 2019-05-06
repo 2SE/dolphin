@@ -79,13 +79,14 @@ func (w *WsServer) Start() {
 
 // addClient add a ws client to session
 func (w *WsServer) addClient(c *Client){
+	w.m.Lock()
+	defer w.m.Unlock()
 	log.Print("ws: add a new client...")
 	if c.conn == nil {
 		log.Println("ws: could not add the client cause client info error")
 		return
 	}
-	w.m.Lock()
-	defer w.m.Unlock()
+
 	c.Timestamp = time.Now().UnixNano()
 	clientId, ok := w.id2Conns[c.conn]
 	if ok {
@@ -108,13 +109,8 @@ func (w *WsServer) addClient(c *Client){
 
 // delClient delete the ws client from session by clientId
 func (w *WsServer) delClient(c *Client) {
-
 	w.m.Lock()
-	defer func() {
-		w.m.Unlock()
-		c.conn.Close()
-	}()
-
+	defer w.m.Unlock()
 	// cancel subscribe
 	for _, p := range c.pushers {
 		Emmiter.UnSubscribe(p.SubPid)
@@ -210,5 +206,4 @@ func (w *WsServer)KeepAlive(cli *Client) {
 	if _, ok := w.id2Conns[cli.conn]; ok {
 		w.Clients[w.id2Conns[cli.conn]].Timestamp = time.Now().UnixNano()
 	}
-
 }

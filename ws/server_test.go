@@ -105,3 +105,29 @@ func client(data []byte) {
 	//}
 
 }
+
+func BenchmarkNewWsServer(b *testing.B) {
+	//bmaddr := flag.String("bmaddr", "127.0.0.1:8081", "http service address")
+	//u := url.URL{Scheme: "ws", Host: *bmaddr, Path: "/ws"}
+	//fmt.Println("*********", u.String())
+	for i := 0; i < b.N; i++ {
+		go func(){
+			websocket.DefaultDialer.Dial("ws://127.0.0.1:8081/ws", nil)
+		}()
+		//printInt2String01(100)
+		//_, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+		//if err != nil {
+		//	b.Error("bench mark error", err)
+		//	break
+		//}
+	}
+}
+
+
+func TestConnectionLoop(t *testing.T) {
+	for i:=0;i<1000;i++ {
+		go func(){
+			websocket.DefaultDialer.Dial("ws://127.0.0.1:8081/ws", nil)
+		}()
+	}
+}
