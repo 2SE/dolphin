@@ -5,8 +5,13 @@ read_buf_size = 1024
 write_buf_size = 1204
 expvar = "/debug/vars"
 grpc_listen = "127.0.0.1:41050"
-write_time_wait = 10
-read_time_wait = 30
+write_time_wait = "10s"
+read_time_wait = "30s"
+idle_session_timeout = "55s"
+session_queue_size = 128
+queue_out_timeout = "50μs"
+id_salt = "u2@QcR88yp#1nb"
+
 [websocket.tls]
 enabled = false
 http_redirect = ":80"

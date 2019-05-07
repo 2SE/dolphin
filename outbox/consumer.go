@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/2se/dolphin/common/timer"
 	"github.com/2se/dolphin/config"
-	"github.com/2se/dolphin/event"
+	"github.com/2se/dolphin/core"
+	tw "github.com/RussellLuo/timingwheel"
 	"github.com/segmentio/kafka-go"
 	log "github.com/sirupsen/logrus"
 	"io/ioutil"
@@ -26,6 +26,8 @@ func getKafkaReader(kafkaURL, topic, groupID string, partition int) *kafka.Reade
 	})
 }*/
 
+var ticker *tw.TimingWheel
+
 type KV struct {
 	Key []byte
 	Val []byte
@@ -40,7 +42,8 @@ func (kv *KV) GetMetaData() []byte {
 func (kv *KV) GetData() []byte {
 	return kv.Val
 }
-func ConsumersInit(cnfs []*config.KafkaConfig, pusher event.Emitter) {
+func ConsumersInit(cnfs []*config.KafkaConfig, pusher core.Hub, twl *tw.TimingWheel) {
+	ticker = twl
 	go offsetRecoder.start()
 	for _, v := range cnfs {
 		go func(cnf *config.KafkaConfig) {
@@ -62,7 +65,7 @@ func ConsumersInit(cnfs []*config.KafkaConfig, pusher event.Emitter) {
 	}
 }
 
-func consumerTopic(reader *kafka.Reader, pusher event.Emitter) error {
+func consumerTopic(reader *kafka.Reader, pusher core.Hub) error {
 	var (
 		logSend = offsetRecoder.sender()
 		m       kafka.Message
@@ -77,7 +80,7 @@ func consumerTopic(reader *kafka.Reader, pusher event.Emitter) error {
 			continue
 		}
 		logSend <- &m
-		pusher.Emit(&KV{
+		pusher.Publish(&core.KV{
 			Key: m.Key,
 			Val: m.Value,
 		})
@@ -94,7 +97,6 @@ var (
 		topicOffset: make(map[string]int64),
 		receive:     make(chan *kafka.Message, 64),
 	}
-	tick = timer.NewTimingWheel(time.Second, 2)
 )
 
 func (o *OffsetRecoder) sender() chan<- *kafka.Message {
@@ -112,8 +114,7 @@ func (o *OffsetRecoder) start() {
 func (o *OffsetRecoder) logWrite() {
 	buff := bytes.NewBuffer(nil)
 	for {
-		select {
-		case <-tick.After(time.Second):
+		ticker.AfterFunc(time.Second, func() {
 			for k, v := range o.topicOffset {
 				buff.WriteString(k)
 				buff.WriteRune(':')
@@ -122,6 +123,6 @@ func (o *OffsetRecoder) logWrite() {
 			}
 			ioutil.WriteFile("./kfk.log", buff.Bytes(), 0644)
 			buff.Reset()
-		}
+		})
 	}
 }

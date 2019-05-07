@@ -6,6 +6,7 @@ import (
 	"github.com/2se/dolphin/config"
 	"github.com/2se/dolphin/core"
 	"github.com/2se/dolphin/pb"
+	tw "github.com/RussellLuo/timingwheel"
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 	"hash/crc32"
@@ -13,7 +14,10 @@ import (
 	"time"
 )
 
-var r *resourcesPool
+var (
+	r      *resourcesPool
+	ticker *tw.TimingWheel
+)
 
 var (
 	ErrMethodPathNotFound   = errors.New("route: methodPath not found")
@@ -26,7 +30,8 @@ const logFieldKey = "router"
 
 // 初始化本地route
 // peer 本地cluster 编号
-func Init(localPeer core.LocalPeer, cnf *config.RouteConfig) core.Router {
+func Init(localPeer core.LocalPeer, cnf *config.RouteConfig, twheel *tw.TimingWheel) core.Router {
+	ticker = twheel
 	r = &resourcesPool{
 		localPeer:  localPeer,
 		pRAddr:     make(map[string]string),

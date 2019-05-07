@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"github.com/golang/protobuf/proto"
+	"io"
 	"sort"
 )
 
@@ -153,4 +154,50 @@ func (s PeerRouters) FindOne(peerName string) (PeerRouter, error) {
 		}
 	}
 	return nil, ErrPeerNotFound
+}
+
+type Request []byte
+
+func (req Request) Unmarshal(model proto.Message) error {
+	return proto.Unmarshal(req, model)
+}
+
+func Marshal(model proto.Message) (req Request, err error) {
+	req, err = proto.Marshal(model)
+	return
+}
+
+type Session interface {
+	io.WriteCloser
+	GetID() string
+	Send(message proto.Message) error
+}
+
+type Hub interface {
+	Start() error
+	Stop() error
+	Subscribe(ssid string, sub Subscriber) (*Subscription, error)
+	UnSubscribe(subscription *Subscription)
+	Publish(kv *KV)
+}
+
+type Dispatcher interface {
+	Dispatch(sess Session, req Request)
+}
+
+type HubDispatcher interface {
+	Hub
+	Dispatcher
+}
+
+type Subscriber = Session
+
+type Subscription struct {
+	Ssid string
+	Sub  Subscriber
+}
+
+type KV struct {
+	Key []byte
+	Val []byte
 }

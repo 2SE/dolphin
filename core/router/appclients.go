@@ -3,18 +3,12 @@ package router
 import (
 	"context"
 	"fmt"
-	"github.com/2se/dolphin/common/timer"
 	"github.com/2se/dolphin/pb"
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"time"
-)
-
-var (
-	tick = timer.NewTimingWheel(time.Second, 30)
 )
 
 func (s *resourcesPool) TryAddClient(address string) error {
@@ -59,8 +53,7 @@ func (s *resourcesPool) callAppAction(address string, request proto.Message) (*p
 
 func (s *resourcesPool) errRecovery() {
 	for {
-		select {
-		case <-tick.After(s.recycle):
+		ticker.AfterFunc(s.recycle, func() {
 			for k, v := range s.connErr {
 				if v > s.threshold {
 					//todo removeByApp
@@ -71,6 +64,6 @@ func (s *resourcesPool) errRecovery() {
 				}
 				s.connErr[k] = 0
 			}
-		}
+		})
 	}
 }

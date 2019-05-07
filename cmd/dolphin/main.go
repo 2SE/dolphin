@@ -1,13 +1,14 @@
 package main
 
 import (
-	"github.com/2se/dolphin/core/cluster"
 	"github.com/2se/dolphin/config"
-	"github.com/2se/dolphin/event"
+	"github.com/2se/dolphin/core/cluster"
+	"github.com/2se/dolphin/core/dispatcher"
+	"github.com/2se/dolphin/core/router"
+	"github.com/2se/dolphin/core/server"
 	"github.com/2se/dolphin/outbox"
 	"github.com/2se/dolphin/routehttp"
-	"github.com/2se/dolphin/core/router"
-	"github.com/2se/dolphin/ws"
+	tw "github.com/RussellLuo/timingwheel"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/urfave/cli.v1"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"runtime/pprof"
 	"strings"
 	"syscall"
+	"time"
 )
 
 //go:generate protoc --proto_path=../../pb/ --go_out=plugins=grpc:../../pb/ ../../pb/appserve.proto
@@ -63,31 +65,37 @@ func run(cliCtx *cli.Context) error {
 	if err != nil || cnf == nil {
 		log.Fatalf("failed to load config file. may be error here: %v or else config is nil", err)
 	}
-	log.Debugf("loaded config info: %s", cnf)
+	log.Infof("loaded config info: %s", cnf)
 
 	pprof := cliCtx.String(FlagPprofKey)
 	if len(pprof) > 0 {
 		runPprof(pprof)
 	}
 
-	//init event emitter
-	emiter := event.NewEmitter(256)
+	ticker := tw.NewTimingWheel(100*time.Millisecond, 550) // timer max wait 100ms * 550 ≈ 55sec.
+	ticker.Start()
+	defer ticker.Stop()
+
+	despatcher := dispatcher.New()
+	despatcher.Start()
+	defer despatcher.Stop()
+
 	//init kafka consumers to push message into event
-	outbox.ConsumersInit(cnf.KafkaCnf, emiter)
+	outbox.ConsumersInit(cnf.KafkaCnf, despatcher, ticker)
 
 	localPeer, err := cluster.Init(cnf.ClusterCnf)
 	if err != nil {
 		log.Fatalf("failed to initial cluster. cause: %v", err)
 	}
 	//init router
-	appRouter := router.Init(localPeer, cnf.RouteCnf)
+	appRouter := router.Init(localPeer, cnf.RouteCnf, ticker)
 	cluster.Start(appRouter)
 	defer cluster.Shutdown()
 	go routehttp.Start(cnf.RouteHttpCnf.Address)
 
-	ws.Init(cnf.WsCnf)
-	if err = ws.ListenAndServe(signalHandler()); err != nil {
-		log.Errorf("%v\n", err)
+	server.Init(cnf.WsCnf, despatcher, ticker)
+	if err = server.ListenAndServe(signalHandler()); err != nil {
+		log.WithError(err).Error("listen and serve websocket failed.")
 	}
 
 	return nil

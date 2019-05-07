@@ -44,14 +44,18 @@ type ClusterFailoverConfig struct {
 }
 
 type WebsocketConfig struct {
-	Listen       string        `toml:"listen"`
-	ReadBufSize  int           `toml:"read_buf_size"`
-	WriteBufSize int           `toml:"write_buf_size"`
-	GrpcListen   string        `toml:"grpc_listen"`
-	Expvar       string        `toml:"expvar"`
-	Tls          *WsTlsConfig  `toml:"tls"`
-	WriteWait    time.Duration `toml:"write_time_wait"`
-	ReadWait     time.Duration `toml:"read_time_wait"`
+	Listen             string       `toml:"listen"`
+	ReadBufSize        int          `toml:"read_buf_size"`
+	WriteBufSize       int          `toml:"write_buf_size"`
+	GrpcListen         string       `toml:"grpc_listen"`
+	Expvar             string       `toml:"expvar"`
+	Tls                *WsTlsConfig `toml:"tls"`
+	WriteWait          Duration     `toml:"write_time_wait"`
+	ReadWait           Duration     `toml:"read_time_wait"`
+	IdleSessionTimeout Duration     `toml:"idle_session_timeout"`
+	SessionQueueSize   int          `toml:"session_queue_size"`
+	QueueOutTimeout    Duration     `toml:"queue_out_timeout"`
+	IDSalt             string       `toml:"id_salt"`
 }
 
 type WsTlsConfig struct {
@@ -125,8 +129,10 @@ func (cnf *Config) GetRouteHttpConfig() *RouteHttpConfig {
 }
 
 func (wscnf *WebsocketConfig) String() string {
-	return fmt.Sprintf("[websocket]\nlisten: %s | read buffer size: %d | write buffer size: %d | expvar: %s\n%s",
-		wscnf.Listen, wscnf.ReadBufSize, wscnf.WriteBufSize, wscnf.Expvar, wscnf.Tls)
+	return fmt.Sprintf("[websocket]\nlisten: %s | read buffer size: %d | write buffer size: %d "+
+		"| expvar: %s\nidle session timeout: %s | session queue size: %d | queue out timeout: %s\n%s\n",
+		wscnf.Listen, wscnf.ReadBufSize, wscnf.WriteBufSize, wscnf.Expvar,
+		wscnf.IdleSessionTimeout, wscnf.SessionQueueSize, wscnf.QueueOutTimeout, wscnf.Tls)
 }
 
 func (tcnf *WsTlsConfig) String() string {
