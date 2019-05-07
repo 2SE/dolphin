@@ -42,11 +42,12 @@ func RegistryHandler(w http.ResponseWriter, r *http.Request) {
 
 	pr := core.NewPeerRouter("", appInfo.AppName)
 	err = router.Register(mps, pr, appInfo.Address)
-	w.WriteHeader(http.StatusOK)
 	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
 	} else {
-		w.Write([]byte("register"))
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Registered successfully!!!"))
 	}
 }
 

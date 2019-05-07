@@ -1,4 +1,4 @@
-package router
+package router_test
 
 import (
 	"fmt"

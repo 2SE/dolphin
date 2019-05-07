@@ -1,8 +1,9 @@
 package outbox
 
 import (
-	"fmt"
-	"github.com/2se/dolphin/event"
+	"github.com/2se/dolphin/core/dispatcher"
+	"github.com/2se/dolphin/mock"
+	_ "github.com/2se/dolphin/mock"
 	"github.com/segmentio/kafka-go"
 	"testing"
 )
@@ -18,19 +19,16 @@ func (t *TestTopic) GetTopic() string {
 var tpc = &TestTopic{"hashhash"}
 
 func TestConsumerEvent(t *testing.T) {
-
-	emitter := event.NewEmitter(2)
+	ticker = mock.Ticker
+	despatcher := dispatcher.New()
+	despatcher.Start()
+	defer despatcher.Stop()
 	offsetRecoder.start()
-	_, eve := emitter.Subscribe(tpc)
-	go func() {
-		reader := kafka.NewReader(kafka.ReaderConfig{
-			Brokers: []string{"127.0.0.1:9092"},
-			Topic:   "ttt1",
-		})
-		consumerTopic(reader, emitter)
-	}()
-	for c := range eve {
-		fmt.Printf("key:%s val:%s\n", c.GetMetaData(), c.GetData())
-		break
-	}
+	//go func() {
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: []string{"www.rennbon.com:9092"},
+		Topic:   "ttt1",
+	})
+	consumerTopic(reader, despatcher)
+	//}()
 }
