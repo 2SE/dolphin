@@ -113,8 +113,10 @@ func (o *OffsetRecoder) start() {
 
 func (o *OffsetRecoder) logWrite() {
 	buff := bytes.NewBuffer(nil)
+	ch := make(chan struct{})
 	for {
 		ticker.AfterFunc(time.Second, func() {
+			ch <- struct{}{}
 			for k, v := range o.topicOffset {
 				buff.WriteString(k)
 				buff.WriteRune(':')
@@ -124,5 +126,6 @@ func (o *OffsetRecoder) logWrite() {
 			ioutil.WriteFile("./kfk.log", buff.Bytes(), 0644)
 			buff.Reset()
 		})
+		<-ch
 	}
 }
