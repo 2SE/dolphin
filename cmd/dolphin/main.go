@@ -8,6 +8,7 @@ import (
 	"github.com/2se/dolphin/core/server"
 	"github.com/2se/dolphin/outbox"
 	"github.com/2se/dolphin/routehttp"
+	"github.com/2se/dolphin/scheduler"
 	tw "github.com/RussellLuo/timingwheel"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/urfave/cli.v1"
@@ -92,7 +93,7 @@ func run(cliCtx *cli.Context) error {
 	cluster.Start(appRouter)
 	defer cluster.Shutdown()
 	go routehttp.Start(cnf.RouteHttpCnf.Address)
-
+	go scheduler.SchedulerStart(cnf.SchedulerCnf.Address)
 	server.Init(cnf.WsCnf, despatcher, ticker)
 	if err = server.ListenAndServe(signalHandler()); err != nil {
 		log.WithError(err).Error("listen and serve websocket failed.")

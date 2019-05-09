@@ -24,11 +24,9 @@ func TestConsumerEvent(t *testing.T) {
 	despatcher.Start()
 	defer despatcher.Stop()
 	offsetRecoder.start()
-	//go func() {
 	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{"www.rennbon.com:9092"},
+		Brokers: []string{"127.0.0.1:9092"},
 		Topic:   "ttt1",
 	})
 	consumerTopic(reader, despatcher)
-	//}()
 }

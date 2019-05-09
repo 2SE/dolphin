@@ -87,7 +87,7 @@ func handle(request *pb.ClientComRequest) (*pb.ServerComResponse, error) {
 }
 
 func (service *ExampleService) Request(ctx context.Context, req *pb.ClientComRequest) (*pb.ServerComResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(time.Second*30))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 	return handle(req)
 }

@@ -45,13 +45,13 @@ func (dis *defaultDispatcher) Subscribe(ssid string, sub core.Subscriber) (*core
 	key := hash.OfString(sub.GetID())
 	if list, ok := dis.hub[ssid]; !ok {
 		list = make(map[uint32]*core.Subscription)
-		list[key] = &core.Subscription{Ssid: ssid, Sub: sub,}
+		list[key] = &core.Subscription{Ssid: ssid, Sub: sub}
 		dis.hub[ssid] = list
 		return list[key], nil
 	}
 
 	if _, ok := dis.hub[ssid][key]; !ok {
-		dis.hub[ssid][key] = &core.Subscription{Ssid: ssid, Sub: sub,}
+		dis.hub[ssid][key] = &core.Subscription{Ssid: ssid, Sub: sub}
 		return dis.hub[ssid][key], nil
 	}
 
@@ -111,7 +111,7 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 	}
 
 	// TODO handle client id
-	mp := core.NewMethodPath(ccr.Meta.Revision, ccr.Meta.Resource, ccr.Meta.Action)
+	mp := core.NewMethodPath(ccr.MethodPath.Revision, ccr.MethodPath.Resource, ccr.MethodPath.Action)
 
 	res, err := router.RouteIn(mp, sess.GetID(), ccr)
 	if err != nil {
@@ -131,11 +131,11 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 		return
 	}
 
-	if ccr.Meta.Subscription && len(ccr.Meta.Key) > 0 {
-		dis.Subscribe(ccr.Meta.Key, sess)
+	if len(ccr.FrontEnd.Key) > 0 {
+		dis.Subscribe(ccr.FrontEnd.Key, sess)
 	}
 
-	if len(ccr.Meta.Key) > 0 {
-		dis.UnSubscribe(&core.Subscription{Ssid: ccr.Meta.Key, Sub: sess})
+	if len(ccr.FrontEnd.Key) > 0 {
+		dis.UnSubscribe(&core.Subscription{Ssid: ccr.FrontEnd.Key, Sub: sess})
 	}
 }

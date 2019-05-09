@@ -12,6 +12,7 @@ type Config struct {
 	PluginsCnf   []*PluginConfig  `toml:"plugins"`
 	RouteCnf     *RouteConfig     `toml:"route""`
 	RouteHttpCnf *RouteHttpConfig `toml:"routehttp"`
+	SchedulerCnf *SchedulerConfig `toml:"scheduler"`
 }
 
 type ClusterConfig struct {
@@ -89,6 +90,9 @@ type PluginConfig struct {
 	ServerAddr string `toml:"server_addr"`
 }
 type RouteHttpConfig struct {
+	Address string `toml:"address"`
+}
+type SchedulerConfig struct {
 	Address string `toml:"address"`
 }
 type RouteConfig struct {
