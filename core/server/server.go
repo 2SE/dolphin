@@ -84,6 +84,7 @@ func Init(cnf *config.WebsocketConfig, dispatcher core.Dispatcher, ticker *tw.Ti
 func ListenAndServe(stop <-chan bool) error {
 	shuttingDown := false
 	httpdone := make(chan bool)
+
 	go func() {
 		var err error
 		if server.TLSConfig != nil {

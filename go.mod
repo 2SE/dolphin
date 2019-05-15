@@ -16,6 +16,7 @@ require (
 	github.com/segmentio/kafka-go v0.2.2
 	github.com/sirupsen/logrus v1.4.1
 	github.com/stretchr/testify v1.2.2
+	github.com/throttled/throttled v2.2.4+incompatible // indirect
 	golang.org/x/crypto v0.0.0-20190411191339-88737f569e3a
 	golang.org/x/sys v0.0.0-20190411185658-b44545bcd369 // indirect
 	google.golang.org/grpc v1.20.0

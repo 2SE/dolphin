@@ -115,4 +115,7 @@ maxWait = "2s"
 
 
 
-
+[limit]
+maxNum = 65536
+maxRate = 50
+maxBurst = 5

@@ -125,7 +125,6 @@ func (sess *session) readLoop() {
 			}
 			return
 		}
-
 		sess.dispatch(data)
 	}
 }

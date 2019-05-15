@@ -79,7 +79,7 @@ type ExampleService struct {
 }
 
 func handle(request *pb.ClientComRequest) (*pb.ServerComResponse, error) {
-	m, ok := v1Map[request.Meta.Action]
+	m, ok := v1Map[request.MethodPath.Action]
 	if !ok {
 		return nil, errors.New("action not found")
 	}

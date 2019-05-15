@@ -1,6 +1,7 @@
-package server
+package dispatcher
 
 import (
+	"github.com/2se/dolphin/config"
 	"github.com/throttled/throttled"
 	"github.com/throttled/throttled/store/memstore"
 )
@@ -13,12 +14,12 @@ type Limiter struct {
 	*throttled.GCRARateLimiter
 }
 
-func initLimiter(maxNum, maxRate, maxBurst int) error {
-	store, err := memstore.New(maxNum)
+func InitLimiter(c *config.LimitConfig) error {
+	store, err := memstore.New(c.MaxNum)
 	if err != nil {
 		return err
 	}
-	quota := throttled.RateQuota{MaxRate: throttled.PerHour(maxRate), MaxBurst: maxBurst}
+	quota := throttled.RateQuota{MaxRate: throttled.PerSec(c.MaxRate), MaxBurst: c.MaxBurst}
 	l, err := throttled.NewGCRARateLimiter(store, quota)
 	if err != nil {
 		return err

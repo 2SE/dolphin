@@ -13,6 +13,7 @@ type Config struct {
 	RouteCnf     *RouteConfig     `toml:"route""`
 	RouteHttpCnf *RouteHttpConfig `toml:"routehttp"`
 	SchedulerCnf *SchedulerConfig `toml:"scheduler"`
+	LimitCnf     *LimitConfig     `toml:"limit"`
 }
 
 type ClusterConfig struct {
@@ -100,6 +101,11 @@ type RouteConfig struct {
 	Threshold int16    `toml:"threshold"`
 	Timeout   Duration `toml:"timeout"`
 }
+type LimitConfig struct {
+	MaxNum   int `toml:"maxNum"`
+	MaxRate  int `toml:"maxRate"`
+	MaxBurst int `toml:"maxBurst"`
+}
 
 func (cnf *Config) String() string {
 	if cnf.ClusterCnf != nil {
@@ -130,6 +136,9 @@ func (cnf *Config) GetRouteConfig() *RouteConfig {
 }
 func (cnf *Config) GetRouteHttpConfig() *RouteHttpConfig {
 	return cnf.RouteHttpCnf
+}
+func (cnf *Config) GetLimitConfig() *LimitConfig {
+	return cnf.LimitCnf
 }
 
 func (wscnf *WebsocketConfig) String() string {

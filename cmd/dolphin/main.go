@@ -77,6 +77,8 @@ func run(cliCtx *cli.Context) error {
 	ticker.Start()
 	defer ticker.Stop()
 
+	dispatcher.InitLimiter(cnf.LimitCnf)
+
 	despatcher := dispatcher.New()
 	despatcher.Start()
 	defer despatcher.Stop()

@@ -1,12 +1,15 @@
 package dispatcher
 
 import (
+	"errors"
+	"fmt"
 	"github.com/2se/dolphin/common/hash"
 	"github.com/2se/dolphin/core"
 	"github.com/2se/dolphin/core/router"
 	"github.com/2se/dolphin/pb"
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
+	"net/http"
 	"sync"
 )
 
@@ -105,9 +108,25 @@ func (dis *defaultDispatcher) pipeline() {
 func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 	ccr := new(pb.ClientComRequest)
 	err := proto.Unmarshal(req, ccr)
+	//part 1
 	if err != nil {
-		log.Errorf("Ws: proto unmarsh msg error: %v", err)
-		// TODO response back sess.write()
+		err = fmt.Errorf("Ws: proto unmarsh msg error: %v", err)
+		response(sess, http.StatusBadRequest, err)
+		return
+	}
+	//part2
+	bucket := fmt.Sprintf("%v%v%v", ccr.Qid, ccr.FrontEnd.Uuid)
+	limited, _, err := limiter.RateLimit(bucket, 1)
+	if err != nil {
+		err = fmt.Errorf("limiter store error: %v", err)
+		response(sess, http.StatusInternalServerError, err)
+		return
+	}
+
+	if limited {
+		err = errors.New("The request exceeded the current limit")
+		response(sess, http.StatusForbidden, err)
+		return
 	}
 
 	// TODO handle client id
@@ -115,27 +134,41 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 
 	res, err := router.RouteIn(mp, sess.GetID(), ccr)
 	if err != nil {
-		// TODO handle error
-		log.Error("ws: router in error", err)
+		err = fmt.Errorf("ws: router in error", err)
+		response(sess, http.StatusInternalServerError, err)
 		return
 	}
+	data, err := core.Marshal(res)
+	if err != nil {
+		// todo handle error
+		err = fmt.Errorf("ws: marshal ServerComResponse data error", err)
+		response(sess, http.StatusInternalServerError, err)
+		return
+	}
+	if _, err = sess.Write(data); err != nil {
+		log.WithError(err).Error("")
+		return
+	}
+	if len(ccr.FrontEnd.Key) > 0 {
+		dis.Subscribe(ccr.FrontEnd.Key, sess)
+	}
+	if len(ccr.FrontEnd.Key) > 0 {
+		dis.UnSubscribe(&core.Subscription{Ssid: ccr.FrontEnd.Key, Sub: sess})
+	}
+}
 
+func response(sess core.Session, code uint32, err error) {
+	log.Error(err)
+	res := &pb.ServerComResponse{
+		Code: code,
+		Text: err.Error(),
+	}
 	data, err := core.Marshal(res)
 	if err != nil {
 		// todo handle error
 		log.Error("ws: marshal ServerComResponse data error", err)
 	}
-
 	if _, err = sess.Write(data); err != nil {
 		log.WithError(err).Error("")
-		return
-	}
-
-	if len(ccr.FrontEnd.Key) > 0 {
-		dis.Subscribe(ccr.FrontEnd.Key, sess)
-	}
-
-	if len(ccr.FrontEnd.Key) > 0 {
-		dis.UnSubscribe(&core.Subscription{Ssid: ccr.FrontEnd.Key, Sub: sess})
 	}
 }
