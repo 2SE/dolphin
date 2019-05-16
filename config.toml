@@ -96,6 +96,7 @@ recycle = "10s"
 threshold = 5
 # appclient请求超时时间
 timeout = "60s"
+heartBeat = "2s"
 
 [routehttp]
 address = "127.0.0.1:9527"

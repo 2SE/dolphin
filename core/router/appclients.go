@@ -8,6 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/status"
 )
 
@@ -22,12 +23,16 @@ func (s *resourcesPool) TryAddClient(address string) error {
 		return fmt.Errorf("did not connect: %v", err)
 	}
 	appCli := pb.NewAppServeClient(conn)
+	s.conns[address] = conn
 	s.clients[address] = appCli
+	log.Infof("grpc client %s startup", address)
 	return nil
 }
 
 func (s *resourcesPool) RemoveClient(address string) {
 	delete(s.clients, address)
+	delete(s.conns, address)
+	log.Infof("grpc client %s shutdown", address)
 }
 
 func (s *resourcesPool) callAppAction(address string, request proto.Message) (*pb.ServerComResponse, error) {
@@ -52,6 +57,7 @@ func (s *resourcesPool) callAppAction(address string, request proto.Message) (*p
 }
 
 func (s *resourcesPool) errRecovery() {
+	ch := make(chan struct{}, 1)
 	for {
 		ticker.AfterFunc(s.recycle, func() {
 			for k, v := range s.connErr {
@@ -64,6 +70,22 @@ func (s *resourcesPool) errRecovery() {
 				}
 				s.connErr[k] = 0
 			}
+			ch <- struct{}{}
 		})
+		<-ch
+	}
+}
+func (s *resourcesPool) healthCheck() {
+	ch := make(chan struct{}, 1)
+	for {
+		ticker.AfterFunc(s.heartBeat, func() {
+			for k, v := range s.conns {
+				if v.GetState() == connectivity.TransientFailure {
+					s.connErr[k]++
+				}
+			}
+			ch <- struct{}{}
+		})
+		<-ch
 	}
 }

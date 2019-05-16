@@ -9,6 +9,7 @@ import (
 	tw "github.com/RussellLuo/timingwheel"
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 	"hash/crc32"
 	"sync"
 	"time"
@@ -38,12 +39,16 @@ func Init(localPeer core.LocalPeer, cnf *config.RouteConfig, twheel *tw.TimingWh
 		addrPR:     make(map[string]core.PeerRouter),
 		connErr:    make(map[string]int16),
 		topicPeers: make(map[string]*core.PeerRouters),
+		conns:      make(map[string]*grpc.ClientConn),
 		clients:    make(map[string]pb.AppServeClient),
 		ring:       make(map[string]*ringhash.Ring),
 		recycle:    cnf.Recycle.Duration,
 		threshold:  cnf.Threshold,
 		timeout:    cnf.Timeout.Duration,
+		heartBeat:  cnf.HeartBeat.Duration,
 	}
+	go r.errRecovery()
+	go r.healthCheck()
 	return r
 }
 
@@ -54,10 +59,12 @@ type resourcesPool struct {
 	connErr    map[string]int16             //key address val:count the err count in a period time for client send request
 	topicPeers map[string]*core.PeerRouters //key: core.MethodPath
 	clients    map[string]pb.AppServeClient //key:address val:grpcClient (only save local app)
-	ring       map[string]*ringhash.Ring    //key: core.MethodPath
+	conns      map[string]*grpc.ClientConn
+	ring       map[string]*ringhash.Ring //key: core.MethodPath
 	recycle    time.Duration
 	threshold  int16
 	timeout    time.Duration
+	heartBeat  time.Duration
 	m          sync.RWMutex
 }
 

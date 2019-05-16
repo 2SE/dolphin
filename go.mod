@@ -12,11 +12,12 @@ require (
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.0
+	github.com/hashicorp/golang-lru v0.5.1 // indirect
 	github.com/pierrec/lz4 v2.0.7+incompatible // indirect
 	github.com/segmentio/kafka-go v0.2.2
 	github.com/sirupsen/logrus v1.4.1
 	github.com/stretchr/testify v1.2.2
-	github.com/throttled/throttled v2.2.4+incompatible // indirect
+	github.com/throttled/throttled v2.2.4+incompatible
 	golang.org/x/crypto v0.0.0-20190411191339-88737f569e3a
 	golang.org/x/sys v0.0.0-20190411185658-b44545bcd369 // indirect
 	google.golang.org/grpc v1.20.0

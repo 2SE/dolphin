@@ -97,6 +97,7 @@ type SchedulerConfig struct {
 	Address string `toml:"address"`
 }
 type RouteConfig struct {
+	HeartBeat Duration `toml:"heartBeat"`
 	Recycle   Duration `toml:"recycle"`
 	Threshold int16    `toml:"threshold"`
 	Timeout   Duration `toml:"timeout"`
