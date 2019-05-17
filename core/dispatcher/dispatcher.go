@@ -114,6 +114,13 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 		response(sess, http.StatusBadRequest, err)
 		return
 	}
+	//part1.5 check
+	if ccr.FrontEnd == nil {
+		err = errors.New("Request parameter validation failed")
+		response(sess, http.StatusBadRequest, err)
+		return
+	}
+
 	//part2
 	bucket := fmt.Sprintf("%v%v%v", ccr.Qid, ccr.FrontEnd.Uuid)
 	limited, _, err := limiter.RateLimit(bucket, 1)

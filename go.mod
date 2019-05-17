@@ -5,11 +5,10 @@ go 1.12
 require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/RussellLuo/timingwheel v0.0.0-20190326154208-5d4ce6cdc0da
-	github.com/gobwas/httphead v0.0.0-20180130184737-2c6c146eadee // indirect
-	github.com/gobwas/pool v0.2.0 // indirect
-	github.com/gobwas/ws v1.0.0
+	github.com/gogo/protobuf v1.2.0
 	github.com/golang/protobuf v1.3.2-0.20190409050943-e91709a02e0e
 	github.com/golang/snappy v0.0.1 // indirect
+	github.com/gomodule/redigo v2.0.0+incompatible // indirect
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.0
 	github.com/hashicorp/golang-lru v0.5.1 // indirect

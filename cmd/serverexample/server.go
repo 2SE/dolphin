@@ -55,7 +55,7 @@ func getId() int64 {
 }
 func init() {
 	//总线服务地址
-	dolphinAddr = "127.0.0.1:10001"
+	dolphinAddr = "http://127.0.0.1:9527"
 	appInfo.PeerName = ""
 	appInfo.AppName = "app1"
 	//本地服务地址
@@ -138,7 +138,6 @@ func (service *ExampleService) GetUser(c *pb.ClientComRequest) (*pb.ServerComRes
 	if err != nil {
 		return nil, err
 	}
-
 	for _, v := range users {
 		if v.UserId == req.UserId {
 			object, err := ptypes.MarshalAny(v)
