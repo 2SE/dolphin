@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/2se/dolphin/core"
 	"github.com/2se/dolphin/core/router"
+	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -53,7 +54,7 @@ func RegistryHandler(w http.ResponseWriter, r *http.Request) {
 
 func Start(address string) {
 	http.HandleFunc("/", RegistryHandler)
-	fmt.Println("servers start")
+	logrus.Info("routeHttp ready to start and listen on ", address)
 	server := &http.Server{
 		Addr:         address,
 		ReadTimeout:  30 * time.Second,

@@ -1,0 +1,24 @@
+version: '3'
+
+services:
+  dolphin:
+    image: 192.168.9.130:5000/hashhash/dolphin:1.0
+    volumes:
+      - "./config.toml:/app/config.toml"
+    restart: always
+    ports:
+      - "8080:8080"
+      - "41050:41050"
+      - "40051:40051"
+      - "9527:9527"
+      - "9528:9528"
+    expose:
+      - "8080"
+      - "41050"
+      - "40051"
+      - "9527"
+      - "9528"
+
+
+
+
