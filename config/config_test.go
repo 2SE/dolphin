@@ -12,5 +12,5 @@ func TestConfigLoad(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	fmt.Println(cnf.LimitCnf)
+	fmt.Println(cnf.LoginMPCnf)
 }

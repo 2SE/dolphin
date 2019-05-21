@@ -91,7 +91,9 @@ func run(cliCtx *cli.Context) error {
 	if err != nil {
 		log.Fatalf("failed to initial cluster. cause: %v", err)
 	}
-	core.InitAccountCheck(cnf.LoginMPCnf, cnf.RegisterMPCnf)
+	if cnf.LoginMPCnf != nil {
+		core.InitAccountCheck(cnf.LoginMPCnf, cnf.SendCodeMPCnf)
+	}
 	//init router
 	appRouter := router.Init(localPeer, cnf.RouteCnf, ticker)
 	cluster.Start(appRouter)

@@ -122,11 +122,11 @@ maxRate = 50
 maxBurst = 5
 
 [login]
-resource = "user"
+resource = "User"
 version = "v1"
 action = "login"
 
-[register]
-resource = "user"
+[sendCode]
+resource = "User"
 version = "v1"
-action = "register"
+action = "SendCode"

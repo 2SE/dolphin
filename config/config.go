@@ -15,7 +15,7 @@ type Config struct {
 	SchedulerCnf  *SchedulerConfig  `toml:"scheduler"`
 	LimitCnf      *LimitConfig      `toml:"limit"`
 	LoginMPCnf    *MethodPathConfig `toml:"login"`
-	RegisterMPCnf *MethodPathConfig `toml:"register"`
+	SendCodeMPCnf *MethodPathConfig `toml:"sendCode"`
 }
 
 type ClusterConfig struct {
@@ -152,8 +152,8 @@ func (cnf *Config) GetLimitConfig() *LimitConfig {
 func (cnf *Config) GetLoginMPConfig() *MethodPathConfig {
 	return cnf.LoginMPCnf
 }
-func (cnf *Config) GetRegisterMPConfig() *MethodPathConfig {
-	return cnf.RegisterMPCnf
+func (cnf *Config) GetSendCodeMPConfig() *MethodPathConfig {
+	return cnf.SendCodeMPCnf
 }
 func (wscnf *WebsocketConfig) String() string {
 	return fmt.Sprintf("[websocket]\nlisten: %s | read buffer size: %d | write buffer size: %d "+

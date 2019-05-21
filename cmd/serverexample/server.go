@@ -55,11 +55,11 @@ func getId() int64 {
 }
 func init() {
 	//总线服务地址
-	dolphinAddr = "http://127.0.0.1:9527"
+	dolphinAddr = "http://192.168.10.169:9527"
 	appInfo.PeerName = ""
 	appInfo.AppName = "app1"
 	//本地服务地址
-	appInfo.Address = "127.0.0.1:10086"
+	appInfo.Address = "192.168.10.169:10086"
 	appInfo.Methods = make([]*MP, 3)
 
 	v1Map["getUser"] = &route{Resource: "v1.0", Reversion: "user", Method: service.GetUser}
