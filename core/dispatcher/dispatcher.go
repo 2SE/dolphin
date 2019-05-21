@@ -157,6 +157,7 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 			response(sess, http.StatusBadRequest, err)
 			return
 		}
+		ccr.Id = sess.GetUserId()
 	}
 	res, err := router.RouteIn(mp, sess.GetID(), ccr)
 	if err != nil {

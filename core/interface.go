@@ -170,6 +170,7 @@ func Marshal(model proto.Message) (req Request, err error) {
 type Session interface {
 	io.WriteCloser
 	GetID() string
+	GetUserId() string
 	Send(message proto.Message) error
 	LoggedIn() bool
 	SetUserId(userId string)

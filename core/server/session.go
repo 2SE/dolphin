@@ -60,6 +60,9 @@ func (sess *session) LoggedIn() bool {
 	defer sess.Unlock()
 	return sess.userId != userEmpty
 }
+func (sess *session) GetUserId() string {
+	return sess.userId
+}
 func (sess *session) SetUserId(userId string) {
 	sess.Lock()
 	defer sess.Unlock()
@@ -116,7 +119,6 @@ func (sess *session) queueOut(data []byte) (n int, err error) {
 		n = 0
 		err = TimeoutErr
 	}
-
 	return
 }
 
