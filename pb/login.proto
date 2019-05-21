@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package user;
+
+//登录类型
+enum LoginType{
+    //默认无效
+    Default = 0; 
+    //code登录
+    Code =1;
+    //账户登录
+    Account =2;
+}
+message LoginRequest{
+    //登录类型
+    LoginType login_type=1;
+    //用户名
+    string user_name =2;
+    //设备号
+    string device_id = 3;
+    //密码
+    string password =4;
+    //验证码
+    string sms_code = 5;
+}
+
+//通证类型
+message LoginResponse {
+    //登录结果
+    bool  result =1;
+    //用户名
+    string user_id = 2;
+}
+

@@ -6,14 +6,16 @@ import (
 )
 
 type Config struct {
-	WsCnf        *WebsocketConfig `toml:"websocket"`
-	ClusterCnf   *ClusterConfig   `toml:"cluster"`
-	KafkaCnf     []*KafkaConfig   `toml:"kafkas"`
-	PluginsCnf   []*PluginConfig  `toml:"plugins"`
-	RouteCnf     *RouteConfig     `toml:"route""`
-	RouteHttpCnf *RouteHttpConfig `toml:"routehttp"`
-	SchedulerCnf *SchedulerConfig `toml:"scheduler"`
-	LimitCnf     *LimitConfig     `toml:"limit"`
+	WsCnf         *WebsocketConfig  `toml:"websocket"`
+	ClusterCnf    *ClusterConfig    `toml:"cluster"`
+	KafkaCnf      []*KafkaConfig    `toml:"kafkas"`
+	PluginsCnf    []*PluginConfig   `toml:"plugins"`
+	RouteCnf      *RouteConfig      `toml:"route""`
+	RouteHttpCnf  *RouteHttpConfig  `toml:"routehttp"`
+	SchedulerCnf  *SchedulerConfig  `toml:"scheduler"`
+	LimitCnf      *LimitConfig      `toml:"limit"`
+	LoginMPCnf    *MethodPathConfig `toml:"login"`
+	RegisterMPCnf *MethodPathConfig `toml:"register"`
 }
 
 type ClusterConfig struct {
@@ -108,6 +110,12 @@ type LimitConfig struct {
 	MaxBurst int `toml:"maxBurst"`
 }
 
+type MethodPathConfig struct {
+	Resource string `toml:"resource"`
+	Version  string `toml:"version"`
+	Action   string `toml:"action"`
+}
+
 func (cnf *Config) String() string {
 	if cnf.ClusterCnf != nil {
 		return fmt.Sprintf("\n%s\n%s\n%s\n\n[plugin]: %s\n",
@@ -141,7 +149,12 @@ func (cnf *Config) GetRouteHttpConfig() *RouteHttpConfig {
 func (cnf *Config) GetLimitConfig() *LimitConfig {
 	return cnf.LimitCnf
 }
-
+func (cnf *Config) GetLoginMPConfig() *MethodPathConfig {
+	return cnf.LoginMPCnf
+}
+func (cnf *Config) GetRegisterMPConfig() *MethodPathConfig {
+	return cnf.RegisterMPCnf
+}
 func (wscnf *WebsocketConfig) String() string {
 	return fmt.Sprintf("[websocket]\nlisten: %s | read buffer size: %d | write buffer size: %d "+
 		"| expvar: %s\nidle session timeout: %s | session queue size: %d | queue out timeout: %s\n%s\n",

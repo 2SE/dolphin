@@ -120,3 +120,13 @@ maxWait = "2s"
 maxNum = 65536
 maxRate = 50
 maxBurst = 5
+
+[login]
+resource = "user"
+version = "v1"
+action = "login"
+
+[register]
+resource = "user"
+version = "v1"
+action = "register"

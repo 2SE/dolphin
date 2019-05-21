@@ -8,9 +8,16 @@ import (
 	"github.com/2se/dolphin/core/router"
 	"github.com/2se/dolphin/pb"
 	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/ptypes"
 	log "github.com/sirupsen/logrus"
 	"net/http"
 	"sync"
+)
+
+const strEmpty = ""
+
+var (
+	ErrParamsNotPass = errors.New("Request parameter validation failed")
 )
 
 func New() core.HubDispatcher {
@@ -105,6 +112,7 @@ func (dis *defaultDispatcher) pipeline() {
 	}
 }
 
+//only from websocket ,not from grpc server
 func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 	ccr := new(pb.ClientComRequest)
 	err := proto.Unmarshal(req, ccr)
@@ -114,14 +122,12 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 		response(sess, http.StatusBadRequest, err)
 		return
 	}
-	//part1.5 check
-	if ccr.FrontEnd == nil {
-		err = errors.New("Request parameter validation failed")
-		response(sess, http.StatusBadRequest, err)
+	//part2
+	bl := chekcRequstParams(sess, ccr)
+	if !bl {
 		return
 	}
-
-	//part2
+	//part3 限流
 	bucket := fmt.Sprintf("%v%v%v", ccr.Qid, ccr.FrontEnd.Uuid)
 	limited, _, err := limiter.RateLimit(bucket, 1)
 	if err != nil {
@@ -129,16 +135,29 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 		response(sess, http.StatusInternalServerError, err)
 		return
 	}
-
 	if limited {
 		err = errors.New("The request exceeded the current limit")
 		response(sess, http.StatusForbidden, err)
 		return
 	}
-
 	// TODO handle client id
 	mp := core.NewMethodPath(ccr.MethodPath.Revision, ccr.MethodPath.Resource, ccr.MethodPath.Action)
-
+	//控制登录用
+	login := sess.LoggedIn()
+	//限制用户操作，放行的mp , 如果接口未添加到全局config中，将不做任何拦截，方便调试
+	if !login && core.AccCheck.NeedCheck() {
+		err = core.AccCheck.CheckFirst(mp)
+		if err != nil {
+			response(sess, http.StatusBadRequest, err)
+			return
+		}
+	} else {
+		if core.AccCheck.CheckLogin(mp) {
+			err = errors.New("bad request")
+			response(sess, http.StatusBadRequest, err)
+			return
+		}
+	}
 	res, err := router.RouteIn(mp, sess.GetID(), ccr)
 	if err != nil {
 		err = fmt.Errorf("ws: router in error", err)
@@ -152,10 +171,24 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 		response(sess, http.StatusInternalServerError, err)
 		return
 	}
+	if !login && core.AccCheck.CheckLogin(mp) {
+		{
+			lr := &pb.LoginResponse{}
+			err = ptypes.UnmarshalAny(res.(*pb.ServerComResponse).Body, lr)
+			if err != nil {
+				response(sess, http.StatusInternalServerError, err)
+				return
+			}
+			if lr.Result {
+				sess.SetUserId(lr.UserId)
+			}
+		}
+	}
 	if _, err = sess.Write(data); err != nil {
 		log.WithError(err).Error("")
 		return
 	}
+
 	if len(ccr.FrontEnd.Key) > 0 {
 		dis.Subscribe(ccr.FrontEnd.Key, sess)
 	}
@@ -164,6 +197,18 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 	}
 }
 
+func chekcRequstParams(sess core.Session, req *pb.ClientComRequest) bool {
+	//part1.5 check
+	if req.FrontEnd == nil || req.TraceId == strEmpty || req.Qid == strEmpty || req.Id == strEmpty {
+		response(sess, http.StatusBadRequest, ErrParamsNotPass)
+		return false
+	}
+	if req.FrontEnd.Uuid == strEmpty {
+		response(sess, http.StatusBadRequest, ErrParamsNotPass)
+		return false
+	}
+	return true
+}
 func response(sess core.Session, code uint32, err error) {
 	log.Error(err)
 	res := &pb.ServerComResponse{

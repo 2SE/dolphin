@@ -171,6 +171,8 @@ type Session interface {
 	io.WriteCloser
 	GetID() string
 	Send(message proto.Message) error
+	LoggedIn() bool
+	SetUserId(userId string)
 }
 
 type Hub interface {

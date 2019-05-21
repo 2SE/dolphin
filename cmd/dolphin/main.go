@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/2se/dolphin/config"
+	"github.com/2se/dolphin/core"
 	"github.com/2se/dolphin/core/cluster"
 	"github.com/2se/dolphin/core/dispatcher"
 	"github.com/2se/dolphin/core/router"
@@ -90,6 +91,7 @@ func run(cliCtx *cli.Context) error {
 	if err != nil {
 		log.Fatalf("failed to initial cluster. cause: %v", err)
 	}
+	core.InitAccountCheck(cnf.LoginMPCnf, cnf.RegisterMPCnf)
 	//init router
 	appRouter := router.Init(localPeer, cnf.RouteCnf, ticker)
 	cluster.Start(appRouter)

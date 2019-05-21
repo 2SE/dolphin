@@ -8,19 +8,25 @@ import (
 	log "github.com/sirupsen/logrus"
 	"io"
 	"runtime"
+	"sync"
 	"time"
 )
 
 var _ io.WriteCloser = &session{}
 
+const userEmpty = ""
+
 // session
 type session struct {
 	opt  *Opt
 	conn *ws.Conn
-	send chan []byte
-	quit chan bool
-	luid security.ID
-	guid string
+	//用户id
+	userId string
+	send   chan []byte
+	quit   chan bool
+	luid   security.ID
+	guid   string
+	sync.Mutex
 }
 
 func NewSession(conn *ws.Conn, opt *Opt) (io.WriteCloser, error) {
@@ -48,6 +54,16 @@ func NewSession(conn *ws.Conn, opt *Opt) (io.WriteCloser, error) {
 
 func (sess *session) GetID() string {
 	return sess.guid
+}
+func (sess *session) LoggedIn() bool {
+	sess.Lock()
+	defer sess.Unlock()
+	return sess.userId != userEmpty
+}
+func (sess *session) SetUserId(userId string) {
+	sess.Lock()
+	defer sess.Unlock()
+	sess.userId = userId
 }
 
 func (sess *session) Send(message proto.Message) (err error) {
