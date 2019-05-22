@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/2se/dolphin/pb"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"io/ioutil"
 	"net"
@@ -62,9 +63,9 @@ func init() {
 	appInfo.Address = "192.168.10.169:10086"
 	appInfo.Methods = make([]*MP, 3)
 
-	v1Map["getUser"] = &route{Resource: "v1.0", Reversion: "user", Method: service.GetUser}
-	v1Map["addUser"] = &route{Resource: "v1.0", Reversion: "user", Method: service.AddUser}
-	v1Map["removeUser"] = &route{Resource: "v1.0", Reversion: "user", Method: service.RmoveUser}
+	v1Map["getUser"] = &route{Resource: "user", Reversion: "v1.0", Method: service.GetUser}
+	v1Map["addUser"] = &route{Resource: "user", Reversion: "v1.0", Method: service.AddUser}
+	v1Map["removeUser"] = &route{Resource: "user", Reversion: "v.10", Method: service.RmoveUser}
 
 	for k, v := range v1Map {
 		appInfo.Methods = append(appInfo.Methods, &MP{
@@ -133,6 +134,7 @@ func (service *ExampleService) RmoveUser(c *pb.ClientComRequest) (*pb.ServerComR
 	return &pb.ServerComResponse{}, nil
 }
 func (service *ExampleService) GetUser(c *pb.ClientComRequest) (*pb.ServerComResponse, error) {
+	logrus.Info(c)
 	req := &GetUserRequest{}
 	err := ptypes.UnmarshalAny(c.Params, req)
 	if err != nil {

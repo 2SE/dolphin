@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/2se/dolphin/config"
 	"github.com/2se/dolphin/core"
 	"github.com/2se/dolphin/core/cluster"
@@ -13,9 +14,13 @@ import (
 	tw "github.com/RussellLuo/timingwheel"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/urfave/cli.v1"
+	"strconv"
+
 	"os"
 	"os/signal"
+
 	"runtime/pprof"
+	"runtime/trace"
 	"strings"
 	"syscall"
 	"time"
@@ -54,6 +59,10 @@ func newApp() (app *cli.App) {
 			Name:  FlagLoglvlKey,
 			Usage: LoglvlUsage,
 		},
+		cli.StringFlag{
+			Name:  "p,period",
+			Usage: PeriodUsage,
+		},
 	}
 	return app
 }
@@ -70,8 +79,17 @@ func run(cliCtx *cli.Context) error {
 	log.Infof("loaded config info: %s", cnf)
 
 	pprof := cliCtx.String(FlagPprofKey)
+	period := cliCtx.String(FlagPeriodKey)
+	t := time.Second * 2
+	if period != "" {
+		ts, err := strconv.ParseInt(period, 10, 64)
+		if err != nil {
+			log.Fatalf("fail")
+		}
+		t = time.Second * time.Duration(ts)
+	}
 	if len(pprof) > 0 {
-		runPprof(pprof)
+		go runPprof(t, pprof)
 	}
 
 	ticker := tw.NewTimingWheel(100*time.Millisecond, 550) // timer max wait 100ms * 550 ≈ 55sec.
@@ -108,7 +126,8 @@ func run(cliCtx *cli.Context) error {
 	return nil
 }
 
-func runPprof(pprofFile string) {
+func runPprof(period time.Duration, pprofFile string) {
+
 	log.Infof("pprof enabled. and it is path: %s", pprofFile)
 	var err error
 
@@ -123,11 +142,18 @@ func runPprof(pprofFile string) {
 		log.Fatal("Failed to create Mem pprof file: ", err)
 	}
 	defer memf.Close()
+	tracef, err := os.Create(pprofFile + ".trace")
+	if err != nil {
+		log.Fatal("Failed to create trace pprof file: ", err)
+	}
+	defer tracef.Close()
 
 	pprof.StartCPUProfile(cpuf)
+	trace.Start(tracef)
 	defer pprof.StopCPUProfile()
 	defer pprof.WriteHeapProfile(memf)
-
+	defer trace.Stop()
+	time.Sleep(period)
 	log.Infof("Profiling info saved to '%s.(cpu|mem)'", pprofFile)
 }
 
@@ -157,4 +183,19 @@ func signalHandler() <-chan bool {
 	}()
 
 	return stop
+}
+
+func traceProfile() {
+	f, err := os.OpenFile("trace.out", os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+
+	log.Println("Trace started")
+	trace.Start(f)
+	defer trace.Stop()
+
+	time.Sleep(60 * time.Second)
+	fmt.Println("Trace stopped")
 }

@@ -170,7 +170,7 @@ func checkOpt(opt *Opt) {
 	}
 
 	if opt.QueueOutTimeout <= 0 {
-		opt.QueueOutTimeout = time.Microsecond * 50
+		opt.QueueOutTimeout = time.Millisecond * 50
 		log.Warnf("queue out timeout value is incorrect, using default: %s", opt.QueueOutTimeout)
 	}
 

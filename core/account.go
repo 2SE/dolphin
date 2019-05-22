@@ -5,7 +5,7 @@ import (
 	"github.com/2se/dolphin/config"
 )
 
-var AccCheck *AccountCheck
+var AccCheck = &AccountCheck{}
 
 var (
 	ErrCheckFirst = errors.New("need login/register first")

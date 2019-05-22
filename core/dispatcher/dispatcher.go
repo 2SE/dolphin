@@ -118,7 +118,7 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 	err := proto.Unmarshal(req, ccr)
 	//part 1
 	if err != nil {
-		err = fmt.Errorf("Ws: proto unmarsh msg error: %v", err)
+		err = fmt.Errorf("Ws: proto unmarsh msg error: %s", err.Error())
 		response(sess, http.StatusBadRequest, err)
 		return
 	}
@@ -128,10 +128,11 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 		return
 	}
 	//part3 限流
-	bucket := fmt.Sprintf("%v%v%v", ccr.Qid, ccr.FrontEnd.Uuid)
+
+	bucket := fmt.Sprintf("%s%s", ccr.Qid, ccr.FrontEnd.Uuid)
 	limited, _, err := limiter.RateLimit(bucket, 1)
 	if err != nil {
-		err = fmt.Errorf("limiter store error: %v", err)
+		err = fmt.Errorf("limiter store error: %s", err.Error())
 		response(sess, http.StatusInternalServerError, err)
 		return
 	}
@@ -140,19 +141,21 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 		response(sess, http.StatusForbidden, err)
 		return
 	}
+
 	// TODO handle client id
 	mp := core.NewMethodPath(ccr.MethodPath.Revision, ccr.MethodPath.Resource, ccr.MethodPath.Action)
 	//控制登录用
 	login := sess.LoggedIn()
+	needCheck := core.AccCheck.NeedCheck()
 	//限制用户操作，放行的mp , 如果接口未添加到全局config中，将不做任何拦截，方便调试
-	if !login && core.AccCheck.NeedCheck() {
+	if !login && needCheck {
 		err = core.AccCheck.CheckFirst(mp)
 		if err != nil {
 			response(sess, http.StatusBadRequest, err)
 			return
 		}
 	} else {
-		if core.AccCheck.CheckLogin(mp) {
+		if needCheck && core.AccCheck.CheckLogin(mp) {
 			err = errors.New("bad request")
 			response(sess, http.StatusBadRequest, err)
 			return
@@ -161,18 +164,18 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 	}
 	res, err := router.RouteIn(mp, sess.GetID(), ccr)
 	if err != nil {
-		err = fmt.Errorf("ws: router in error", err)
+		err = fmt.Errorf("ws: router in error:%s", err.Error())
 		response(sess, http.StatusInternalServerError, err)
 		return
 	}
 	data, err := core.Marshal(res)
 	if err != nil {
 		// todo handle error
-		err = fmt.Errorf("ws: marshal ServerComResponse data error", err)
+		err = fmt.Errorf("ws: marshal ServerComResponse data error:%s", err.Error())
 		response(sess, http.StatusInternalServerError, err)
 		return
 	}
-	if !login && core.AccCheck.CheckLogin(mp) {
+	if !login && needCheck && core.AccCheck.CheckLogin(mp) {
 		{
 			lr := &pb.LoginResponse{}
 			err = ptypes.UnmarshalAny(res.(*pb.ServerComResponse).Body, lr)
