@@ -110,7 +110,7 @@ func run(cliCtx *cli.Context) error {
 		log.Fatalf("failed to initial cluster. cause: %v", err)
 	}
 	if cnf.LoginMPCnf != nil {
-		core.InitAccountCheck(cnf.LoginMPCnf, cnf.SendCodeMPCnf)
+		core.InitRequestCheck(cnf.LoginMPCnf, cnf.WhiteList)
 	}
 	//init router
 	appRouter := router.Init(localPeer, cnf.RouteCnf, ticker)

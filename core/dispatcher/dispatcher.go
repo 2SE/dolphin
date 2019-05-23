@@ -146,16 +146,16 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 	mp := core.NewMethodPath(ccr.MethodPath.Revision, ccr.MethodPath.Resource, ccr.MethodPath.Action)
 	//控制登录用
 	login := sess.LoggedIn()
-	needCheck := core.AccCheck.NeedCheck()
+	needCheck := core.ReqCheck.NeedCheck()
 	//限制用户操作，放行的mp , 如果接口未添加到全局config中，将不做任何拦截，方便调试
 	if !login && needCheck {
-		err = core.AccCheck.CheckFirst(mp)
+		err = core.ReqCheck.CheckFirst(mp)
 		if err != nil {
 			response(sess, http.StatusBadRequest, err)
 			return
 		}
 	} else {
-		if needCheck && core.AccCheck.CheckLogin(mp) {
+		if needCheck && core.ReqCheck.CheckLogin(mp) {
 			err = errors.New("bad request")
 			response(sess, http.StatusBadRequest, err)
 			return
@@ -175,7 +175,7 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 		response(sess, http.StatusInternalServerError, err)
 		return
 	}
-	if !login && needCheck && core.AccCheck.CheckLogin(mp) {
+	if !login && needCheck && core.ReqCheck.CheckLogin(mp) {
 		{
 			lr := &pb.LoginResponse{}
 			err = ptypes.UnmarshalAny(res.(*pb.ServerComResponse).Body, lr)
