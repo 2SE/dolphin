@@ -7,3 +7,8 @@ wget https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/$
 unzip ${PROTOC_FILENAME}
 bin/protoc --version
 popd
+
+GIT_TAG="v1.3.1" # change as needed
+go get -d -u github.com/golang/protobuf/protoc-gen-go
+git -C "$(go env GOPATH)"/src/github.com/golang/protobuf checkout ${GIT_TAG}
+go install github.com/golang/protobuf/protoc-gen-go
