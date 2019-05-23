@@ -73,6 +73,12 @@ func (s *resourcesPool) Register(mps []core.MethodPath, pr core.PeerRouter, addr
 	defer s.m.Unlock()
 	if pr.PeerName() == "" {
 		pr.SetPeerName(s.localPeer.Name())
+		if s.pRAddr[pr.String()] == address {
+			log.WithFields(log.Fields{
+				logFieldKey: "Register",
+			}).Warnf("the address %s registered again when it not shutdown")
+			return nil
+		}
 		err := s.TryAddClient(address)
 		if err != nil {
 			log.WithFields(log.Fields{
@@ -132,7 +138,7 @@ func (s *resourcesPool) RouteIn(mp core.MethodPath, id string, request proto.Mes
 	if !ok {
 		log.WithFields(log.Fields{
 			logFieldKey: "RouteIn",
-		}).Warnf("methodpath %s not found\n", mp.String())
+		}).Warnf("methodpath %s not found", mp.String())
 		return nil, ErrMethodPathNotFound
 	}
 	if _, ok := s.ring[mp.String()]; !ok {
@@ -149,7 +155,7 @@ func (s *resourcesPool) RouteIn(mp core.MethodPath, id string, request proto.Mes
 	if err != nil {
 		log.WithFields(log.Fields{
 			logFieldKey: "RouteIn",
-		}).Warnf("peer %s not exists\n", peer)
+		}).Warnf("peer %s not exists,", peer)
 		return nil, err
 	}
 	return s.localPeer.Request(pa, request)
