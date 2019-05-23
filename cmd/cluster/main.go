@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/2se/dolphin/cluster"
 	"github.com/2se/dolphin/config"
+	"github.com/2se/dolphin/core/cluster"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/urfave/cli.v1"
 	"os"
@@ -72,7 +72,7 @@ func run(context *cli.Context) error {
 		log.Fatalf("初始化集群出错! %v", err)
 	}
 
-	cluster.Start()
+	cluster.Start(nil)
 	<-signalHandler()
 	cluster.Shutdown()
 

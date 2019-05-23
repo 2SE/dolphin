@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package main;
+
+
+message User{
+    int64 user_id=1;
+    string user_name =2;
+    int32 age =3;
+    string face = 4;
+}
+
+
+message GetUserRequest {
+    int64 user_id =  1;
+}

@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package user;
+import "google/protobuf/any.proto";
+
+
+//登录返回值
+message LoginResponse {
+    //登录结果
+    bool  result =1;
+    //用户名
+    string user_id = 2;
+    //自定义参数
+    google.protobuf.Any params = 3;
+}
+

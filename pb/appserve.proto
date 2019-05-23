@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package main;
+import "google/protobuf/any.proto";
+
+
+// Request 总体数据格式定义
+message ClientComRequest {
+    string id =1;//由客户端自行定义单次请求的唯一标识，建议使用从1递增的序列，表示请求先后次序
+    string qid = 2; // 由客户端自行定义相同请求标识，防止客户端发出相同的请求多次。该值可以是随机值，不得超过8个字符
+    string trace_id = 3 [json_name = "trace_id"]; // 请求追踪ID
+    MethodPath method_path = 4;//方法路径
+    FrontEnd front_end =5;//前端参数，后端gprc服务间调用于此无关（包含订阅，签名，客户端版本，设备id等）
+    google.protobuf.Any params = 6; // app action对应请求参数，由各个app服务定义
+}
+
+//方法路径
+message MethodPath{
+    string resource = 1 [json_name = "res"]; // 请求后端APP的资源名称
+    string action = 2 [json_name = "act"]; // 对资源进行的相关操作
+    string revision = 3 [json_name = "rev"]; // 资源的版本
+}
+//前端参数，定稿参数就要等待定稿
+message FrontEnd {
+    string key = 1; // 如果订阅推送，订阅的key，key为空时不订阅
+    string uuid = 2; // 标识手机端设备ID
+    string client_version = 3 [json_name = "cver"]; // 客户端的版本
+    string platform = 4 [json_name = "platf"]; // 客户端所用平台，ios/android
+    string hash = 5; // 用户手机号码的hash
+    string signature = 6 [json_name = "sig"]; // 用户登录时本地的私钥的签名
+}
+
+
+// ServerComResponse 统一接入响应手机端的数据结构
+message ServerComResponse {
+    string id = 1; // 原样返回客户端单次唯一标识，如果是推送消息，id省略。
+    uint32 code = 2; // 返回的错误码，错误码采用HTTP ErrCode
+    string text = 3; // 错误的原因，如果正常返回，返回ok
+    string trace_id = 4 [json_name = "trace_id"];
+    string seq_id = 5; // 如果是推送时，服务器会发送推送的计数序号。
+    int64 ts = 6; // 消息发送的时间戳
+    google.protobuf.Any header = 7; // 消息发送头部信息，由API定义
+    google.protobuf.Any body = 8; // 消息发送的主体内容，由API定义
+}
+
+service AppServe {
+    rpc Request (ClientComRequest) returns (ServerComResponse);
+}

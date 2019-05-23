@@ -12,14 +12,16 @@ const (
 	PackVer = 0
 
 	Usage       = "distributed api gateway"
-	UsageText   = "dolphin [-c|--config value] [--pprof value] [--loglvl value]"
+	UsageText   = "dolphin [-c|--config value] [--pprof value] [--loglvl value] [-p|--period value]"
 	ConfigUsage = "Path to config file. if empty, will finding in ${HOME}/.config/dolphin.d/config.toml and /etc/dolphin.d/config.toml"
 	PprofUsage  = "File name to save profiling info to. Disabled if not set."
 	LoglvlUsage = "debug,info,warn"
+	PeriodUsage = "The pprof time span"
 
 	FlagConfigKey = "config"
 	FlagPprofKey  = "pprof"
 	FlagLoglvlKey = "loglvl"
+	FlagPeriodKey = "period"
 )
 
 /// go build -ldflags "-X main.VERSION=`date -u +.%Y%m%d.%H%M%S`" main.go

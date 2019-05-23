@@ -5,6 +5,12 @@ read_buf_size = 1024
 write_buf_size = 1204
 expvar = "/debug/vars"
 grpc_listen = "127.0.0.1:41050"
+write_time_wait = "10s"
+read_time_wait = "30s"
+idle_session_timeout = "55s"
+session_queue_size = 128
+queue_out_timeout = "50μs"
+id_salt = "u2@QcR88yp#1nb"
 
 [websocket.tls]
 enabled = false
@@ -82,3 +88,45 @@ server_addr = "127.0.0.1:30060"
 enabled = false
 name = "rate limit"
 server_addr = "127.0.0.1:30061"
+
+[route]
+# appclient请求错误计数周期
+recycle = "10s"
+# recycel周期内的错误数阙值
+threshold = 5
+# appclient请求超时时间
+timeout = "60s"
+heartBeat = "2s"
+
+[routehttp]
+address = "127.0.0.1:9527"
+
+[scheduler]
+address = "127.0.0.1:9528"
+
+[[kafkas]]
+brokers = ["127.0.0.1:9092"]
+topic = "test"
+offset = 0
+groupId = ""
+partition = 0
+minBytes = 1000
+maxBytes = 1000000
+maxWait = "2s"
+
+
+
+[limit]
+maxNum = 65536
+maxRate = 50
+maxBurst = 5
+
+[login]
+resource = "User"
+version = "v1"
+action = "login"
+
+[sendCode]
+resource = "User"
+version = "v1"
+action = "SendCode"

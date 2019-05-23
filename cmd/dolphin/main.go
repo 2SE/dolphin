@@ -1,19 +1,32 @@
 package main
 
 import (
-	"github.com/2se/dolphin/cluster"
+	"fmt"
 	"github.com/2se/dolphin/config"
-	"github.com/2se/dolphin/ws"
+	"github.com/2se/dolphin/core"
+	"github.com/2se/dolphin/core/cluster"
+	"github.com/2se/dolphin/core/dispatcher"
+	"github.com/2se/dolphin/core/router"
+	"github.com/2se/dolphin/core/server"
+	"github.com/2se/dolphin/outbox"
+	"github.com/2se/dolphin/routehttp"
+	"github.com/2se/dolphin/scheduler"
+	tw "github.com/RussellLuo/timingwheel"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/urfave/cli.v1"
+	"strconv"
+
 	"os"
 	"os/signal"
+
 	"runtime/pprof"
+	"runtime/trace"
 	"strings"
 	"syscall"
+	"time"
 )
 
-//go:generate protoc --proto_path=../../eventbus/ --go_out=plugins=grpc:../../eventbus/ ../../eventbus/service.proto
+//go:generate protoc --proto_path=../../pb/ --go_out=plugins=grpc:../../pb/ ../../pb/appserve.proto
 
 func main() {
 	log.SetFormatter(&log.TextFormatter{ForceColors: true, FullTimestamp: true})
@@ -46,6 +59,10 @@ func newApp() (app *cli.App) {
 			Name:  FlagLoglvlKey,
 			Usage: LoglvlUsage,
 		},
+		cli.StringFlag{
+			Name:  "p,period",
+			Usage: PeriodUsage,
+		},
 	}
 	return app
 }
@@ -59,35 +76,58 @@ func run(cliCtx *cli.Context) error {
 	if err != nil || cnf == nil {
 		log.Fatalf("failed to load config file. may be error here: %v or else config is nil", err)
 	}
-	log.Debugf("loaded config info: %s", cnf)
+	log.Infof("loaded config info: %s", cnf)
 
 	pprof := cliCtx.String(FlagPprofKey)
+	period := cliCtx.String(FlagPeriodKey)
+	t := time.Second * 2
+	if period != "" {
+		ts, err := strconv.ParseInt(period, 10, 64)
+		if err != nil {
+			log.Fatalf("fail")
+		}
+		t = time.Second * time.Duration(ts)
+	}
 	if len(pprof) > 0 {
-		runPprof(pprof)
+		go runPprof(t, pprof)
 	}
 
-	//workerId, err := cluster.Init(cnf.GetClusterConfig())
-	//if err != nil {
-	//	log.Printf("初始化集群失败 %v", err)
-	//	return
-	//}
-	//
-	//log.Printf("当前节点运行的workid %d", workerId)
-	//
-	//cluster.Start()
-	//defer cluster.Shutdown()
+	ticker := tw.NewTimingWheel(100*time.Millisecond, 550) // timer max wait 100ms * 550 ≈ 55sec.
+	ticker.Start()
+	defer ticker.Stop()
 
-	cluster.Route()
+	dispatcher.InitLimiter(cnf.LimitCnf)
 
-	ws.Init(cnf.WsCnf)
-	if err = ws.ListenAndServe(signalHandler()); err != nil {
-		log.Errorf("%v\n", err)
+	despatcher := dispatcher.New()
+	despatcher.Start()
+	defer despatcher.Stop()
+
+	//init kafka consumers to push message into event
+	outbox.ConsumersInit(cnf.KafkaCnf, despatcher, ticker)
+
+	localPeer, err := cluster.Init(cnf.ClusterCnf)
+	if err != nil {
+		log.Fatalf("failed to initial cluster. cause: %v", err)
+	}
+	if cnf.LoginMPCnf != nil {
+		core.InitAccountCheck(cnf.LoginMPCnf, cnf.SendCodeMPCnf)
+	}
+	//init router
+	appRouter := router.Init(localPeer, cnf.RouteCnf, ticker)
+	cluster.Start(appRouter)
+	defer cluster.Shutdown()
+	go routehttp.Start(cnf.RouteHttpCnf.Address)
+	go scheduler.SchedulerStart(cnf.SchedulerCnf.Address)
+	server.Init(cnf.WsCnf, despatcher, ticker)
+	if err = server.ListenAndServe(signalHandler()); err != nil {
+		log.WithError(err).Error("listen and serve websocket failed.")
 	}
 
 	return nil
 }
 
-func runPprof(pprofFile string) {
+func runPprof(period time.Duration, pprofFile string) {
+
 	log.Infof("pprof enabled. and it is path: %s", pprofFile)
 	var err error
 
@@ -102,11 +142,18 @@ func runPprof(pprofFile string) {
 		log.Fatal("Failed to create Mem pprof file: ", err)
 	}
 	defer memf.Close()
+	tracef, err := os.Create(pprofFile + ".trace")
+	if err != nil {
+		log.Fatal("Failed to create trace pprof file: ", err)
+	}
+	defer tracef.Close()
 
 	pprof.StartCPUProfile(cpuf)
+	trace.Start(tracef)
 	defer pprof.StopCPUProfile()
 	defer pprof.WriteHeapProfile(memf)
-
+	defer trace.Stop()
+	time.Sleep(period)
 	log.Infof("Profiling info saved to '%s.(cpu|mem)'", pprofFile)
 }
 
@@ -136,4 +183,19 @@ func signalHandler() <-chan bool {
 	}()
 
 	return stop
+}
+
+func traceProfile() {
+	f, err := os.OpenFile("trace.out", os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+
+	log.Println("Trace started")
+	trace.Start(f)
+	defer trace.Stop()
+
+	time.Sleep(60 * time.Second)
+	fmt.Println("Trace stopped")
 }
