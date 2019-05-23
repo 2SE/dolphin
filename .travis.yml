@@ -10,7 +10,12 @@ os:
 
 dist: trusty
 sudo: false
-install: true
+install:
+  - ./vet.sh
+  - go get -v -d -t github.com/golang/protobuf/...
+
+env:
+  - PATH=$HOME/bin:$PATH
 
 script:
   - env GO111MODULE=on make
