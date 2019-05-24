@@ -7,10 +7,17 @@
 
 ## How to use
 ### 1. protobuf全局请求体
-- 在dolphin/pb/appserve.proto用于标准化请求的参数和请求的返回参数
-- dolphin/pb/login.proto用户约束登录成功后对用户id的监控，并使用截获的用户id做一致性hash
+- [dolphin/pb/appserve.proto](./pb/appserve.proto)用于标准化请求的参数和请求的返回参数
 
-### 2. 配置文件
+- [dolphin/pb/login.proto](./pb/login.proto)用户约束登录成功后对用户id的监控，并使用截获的用户id做一致性hash
+
+### 2. 运行流程
+![single dolphin](./single dolphin.png)
+ 
+- dolphin启动后首先将各个服务通过dolphin的http端口发送服务注册请求，dolphin在接收到请求后会将服务连接持久化并执行健康监测，如果注册的多个服务是相同的，dolphin内部会在调用时通过用户一致性哈希路由，服务之间的调用则通过dolphin内部的grpc-server解耦
+
+- websocket支持订阅，通过约定好的订阅key，服务在运行时可以将用户订阅的信息直接以kv的形式写入到kafka，dolphin会消费指定topic的内容分发给订阅的通道。
+### 2. [配置文件](./config.toml)
 #### 1. [websocket] 对外提供访问的配置
 ```
 {
