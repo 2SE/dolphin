@@ -126,7 +126,7 @@ resource = "User"
 version = "v1"
 action = "login"
 
-[sendCode]
+[[whiteList]]
 resource = "User"
 version = "v1"
 action = "SendCode"

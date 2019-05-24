@@ -6,16 +6,16 @@ import (
 )
 
 type Config struct {
-	WsCnf         *WebsocketConfig  `toml:"websocket"`
-	ClusterCnf    *ClusterConfig    `toml:"cluster"`
-	KafkaCnf      []*KafkaConfig    `toml:"kafkas"`
-	PluginsCnf    []*PluginConfig   `toml:"plugins"`
-	RouteCnf      *RouteConfig      `toml:"route""`
-	RouteHttpCnf  *RouteHttpConfig  `toml:"routehttp"`
-	SchedulerCnf  *SchedulerConfig  `toml:"scheduler"`
-	LimitCnf      *LimitConfig      `toml:"limit"`
-	LoginMPCnf    *MethodPathConfig `toml:"login"`
-	SendCodeMPCnf *MethodPathConfig `toml:"sendCode"`
+	WsCnf        *WebsocketConfig    `toml:"websocket"`
+	ClusterCnf   *ClusterConfig      `toml:"cluster"`
+	KafkaCnf     []*KafkaConfig      `toml:"kafkas"`
+	PluginsCnf   []*PluginConfig     `toml:"plugins"`
+	RouteCnf     *RouteConfig        `toml:"route""`
+	RouteHttpCnf *RouteHttpConfig    `toml:"routehttp"`
+	SchedulerCnf *SchedulerConfig    `toml:"scheduler"`
+	LimitCnf     *LimitConfig        `toml:"limit"`
+	LoginMPCnf   *MethodPathConfig   `toml:"login"`
+	WhiteList    []*MethodPathConfig `toml:"whiteList"`
 }
 
 type ClusterConfig struct {
@@ -48,18 +48,26 @@ type ClusterFailoverConfig struct {
 }
 
 type WebsocketConfig struct {
-	Listen             string       `toml:"listen"`
-	ReadBufSize        int          `toml:"read_buf_size"`
-	WriteBufSize       int          `toml:"write_buf_size"`
-	GrpcListen         string       `toml:"grpc_listen"`
-	Expvar             string       `toml:"expvar"`
-	Tls                *WsTlsConfig `toml:"tls"`
-	WriteWait          Duration     `toml:"write_time_wait"`
-	ReadWait           Duration     `toml:"read_time_wait"`
-	IdleSessionTimeout Duration     `toml:"idle_session_timeout"`
-	SessionQueueSize   int          `toml:"session_queue_size"`
-	QueueOutTimeout    Duration     `toml:"queue_out_timeout"`
-	IDSalt             string       `toml:"id_salt"`
+	//监听端口号
+	Listen string `toml:"listen"`
+	//读取缓冲区大小设置
+	ReadBufSize int `toml:"read_buf_size"`
+	//写缓冲区大小设置
+	WriteBufSize int `toml:"write_buf_size"`
+	//tls配置,证书路径等
+	Tls *WsTlsConfig `toml:"tls"`
+	//写数据timeout
+	WriteWait Duration `toml:"write_time_wait"`
+	//读数据timeout
+	ReadWait Duration `toml:"read_time_wait"`
+	//空闲会话timeout
+	IdleSessionTimeout Duration `toml:"idle_session_timeout"`
+	//写数据个数缓冲区限制
+	SessionQueueSize int `toml:"session_queue_size"`
+	//写数据个数缓冲区消费等待时间
+	QueueOutTimeout Duration `toml:"queue_out_timeout"`
+	//sess.guid 盐
+	IDSalt string `toml:"id_salt"`
 }
 
 type WsTlsConfig struct {
@@ -99,14 +107,21 @@ type SchedulerConfig struct {
 	Address string `toml:"address"`
 }
 type RouteConfig struct {
+	//dolphin维护的grpc client的心跳监测周期
 	HeartBeat Duration `toml:"heartBeat"`
-	Recycle   Duration `toml:"recycle"`
-	Threshold int16    `toml:"threshold"`
-	Timeout   Duration `toml:"timeout"`
+	//grpc client 回收周期
+	Recycle Duration `toml:"recycle"`
+	//grpc client 不正常请求个数阙值，超过个数后，在下次回收周期到来后grpc client会被移除
+	Threshold int16 `toml:"threshold"`
+	//grpc client 请求timeout
+	Timeout Duration `toml:"timeout"`
 }
 type LimitConfig struct {
-	MaxNum   int `toml:"maxNum"`
-	MaxRate  int `toml:"maxRate"`
+	//最大请求数
+	MaxNum int `toml:"maxNum"`
+	//每个bucket每秒钟请求个数
+	MaxRate int `toml:"maxRate"`
+	//每个bucket可溢出请求个数
 	MaxBurst int `toml:"maxBurst"`
 }
 
@@ -152,13 +167,13 @@ func (cnf *Config) GetLimitConfig() *LimitConfig {
 func (cnf *Config) GetLoginMPConfig() *MethodPathConfig {
 	return cnf.LoginMPCnf
 }
-func (cnf *Config) GetSendCodeMPConfig() *MethodPathConfig {
-	return cnf.SendCodeMPCnf
+func (cnf *Config) GetWhiteListConfig() []*MethodPathConfig {
+	return cnf.WhiteList
 }
 func (wscnf *WebsocketConfig) String() string {
 	return fmt.Sprintf("[websocket]\nlisten: %s | read buffer size: %d | write buffer size: %d "+
-		"| expvar: %s\nidle session timeout: %s | session queue size: %d | queue out timeout: %s\n%s\n",
-		wscnf.Listen, wscnf.ReadBufSize, wscnf.WriteBufSize, wscnf.Expvar,
+		" | session queue size: %d | queue out timeout: %s\n%s\n",
+		wscnf.Listen, wscnf.ReadBufSize, wscnf.WriteBufSize,
 		wscnf.IdleSessionTimeout, wscnf.SessionQueueSize, wscnf.QueueOutTimeout, wscnf.Tls)
 }
 

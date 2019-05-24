@@ -6,11 +6,10 @@ import (
 	"github.com/2se/dolphin/core"
 	"github.com/2se/dolphin/core/cluster"
 	"github.com/2se/dolphin/core/dispatcher"
+	"github.com/2se/dolphin/core/outbox"
 	"github.com/2se/dolphin/core/router"
+	"github.com/2se/dolphin/core/scheduler"
 	"github.com/2se/dolphin/core/server"
-	"github.com/2se/dolphin/outbox"
-	"github.com/2se/dolphin/routehttp"
-	"github.com/2se/dolphin/scheduler"
 	tw "github.com/RussellLuo/timingwheel"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/urfave/cli.v1"
@@ -103,20 +102,21 @@ func run(cliCtx *cli.Context) error {
 	defer despatcher.Stop()
 
 	//init kafka consumers to push message into event
-	outbox.ConsumersInit(cnf.KafkaCnf, despatcher, ticker)
+	//outbox.ConsumersInit(cnf.KafkaCnf, despatcher, ticker)
+	outbox.InitConsumers(cnf.KafkaCnf, despatcher, ticker)
 
 	localPeer, err := cluster.Init(cnf.ClusterCnf)
 	if err != nil {
 		log.Fatalf("failed to initial cluster. cause: %v", err)
 	}
 	if cnf.LoginMPCnf != nil {
-		core.InitAccountCheck(cnf.LoginMPCnf, cnf.SendCodeMPCnf)
+		core.InitRequestCheck(cnf.LoginMPCnf, cnf.WhiteList)
 	}
 	//init router
 	appRouter := router.Init(localPeer, cnf.RouteCnf, ticker)
 	cluster.Start(appRouter)
 	defer cluster.Shutdown()
-	go routehttp.Start(cnf.RouteHttpCnf.Address)
+	go scheduler.Start(cnf.RouteHttpCnf.Address)
 	go scheduler.SchedulerStart(cnf.SchedulerCnf.Address)
 	server.Init(cnf.WsCnf, despatcher, ticker)
 	if err = server.ListenAndServe(signalHandler()); err != nil {

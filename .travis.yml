@@ -1,0 +1,21 @@
+language: go
+
+go:
+  - 1.12.x
+  - master
+
+os:
+  - linux
+
+dist: trusty
+sudo: false
+install:
+  - ./vet.sh
+  - go get -v -d -t github.com/golang/protobuf/...
+
+env:
+  - PATH=$HOME/bin:$PATH
+
+script:
+  - env GO111MODULE=on make
+  - env GO111MODULE=on go test -v github.com/2se/dolphin/core
