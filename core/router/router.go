@@ -124,9 +124,9 @@ func (s *resourcesPool) UnRegisterApp(pr core.PeerRouter) {
 		prs.RemoveByPeerRouter(pr)
 	}
 	if address, ok := s.pRAddr[pr.String()]; ok {
-		delete(s.pRAddr, pr.String())
 		delete(s.addrPR, address)
 		s.RemoveClient(address)
+		delete(s.pRAddr, pr.String())
 	}
 	s.localPeer.Notify(pr)
 }
