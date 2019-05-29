@@ -76,7 +76,7 @@ func (s *resourcesPool) Register(mps []core.MethodPath, pr core.PeerRouter, addr
 		if s.pRAddr[pr.String()] == address {
 			log.WithFields(log.Fields{
 				logFieldKey: "Register",
-			}).Warnf("the address %s registered again when it not shutdown")
+			}).Warnf("the address %s registered again when it not shutdown", address)
 			return nil
 		}
 		err := s.TryAddClient(address)
@@ -124,9 +124,9 @@ func (s *resourcesPool) UnRegisterApp(pr core.PeerRouter) {
 		prs.RemoveByPeerRouter(pr)
 	}
 	if address, ok := s.pRAddr[pr.String()]; ok {
-		delete(s.pRAddr, pr.String())
 		delete(s.addrPR, address)
 		s.RemoveClient(address)
+		delete(s.pRAddr, pr.String())
 	}
 	s.localPeer.Notify(pr)
 }

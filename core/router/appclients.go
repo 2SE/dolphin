@@ -68,7 +68,7 @@ func (s *resourcesPool) errRecovery() {
 						logFieldKey: "errRecovery",
 					}).Tracef("appclient %s was removed\n", k)
 				}
-				s.connErr[k] = 0
+				s.connErrClear(k)
 			}
 			ch <- struct{}{}
 		})
@@ -81,11 +81,23 @@ func (s *resourcesPool) healthCheck() {
 		ticker.AfterFunc(s.heartBeat, func() {
 			for k, v := range s.conns {
 				if v.GetState() == connectivity.TransientFailure {
-					s.connErr[k]++
+					s.connErrInc(k)
 				}
 			}
 			ch <- struct{}{}
 		})
 		<-ch
 	}
+}
+
+func (s *resourcesPool) connErrInc(key string) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	s.connErr[key]++
+}
+
+func (s *resourcesPool) connErrClear(key string) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	s.connErr[key] = 0
 }
