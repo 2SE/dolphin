@@ -104,24 +104,37 @@ func (s *resourcesPool) Register(mps []core.MethodPath, pr core.PeerRouter, addr
 			s.topicPeers[mp.String()].Append(pr)
 			s.topicPeers[mp.String()].Sort()
 		}
+		s.rering(mp.String())
 	}
 	s.localPeer.Notify(pr, mps...)
 	return nil
 }
 
+func (s *resourcesPool) rering(key string) {
+	peers := *s.topicPeers[key]
+	keys := make([]string, 0, peers.Len())
+	for _, v := range peers {
+		keys = append(keys, v.PeerName())
+	}
+	ring := ringhash.New(peers.Len(), crc32.ChecksumIEEE)
+	ring.Add(keys...)
+	s.ring[key] = ring
+}
 func (s *resourcesPool) UnRegisterPeer(peerName string) {
 	s.m.Lock()
 	defer s.m.Unlock()
-	for _, prs := range s.topicPeers {
+	for mp, prs := range s.topicPeers {
 		prs.RemoveByPeer(peerName)
+		s.rering(mp)
 	}
 }
 
 func (s *resourcesPool) UnRegisterApp(pr core.PeerRouter) {
 	s.m.Lock()
 	defer s.m.Unlock()
-	for _, prs := range s.topicPeers {
+	for mp, prs := range s.topicPeers {
 		prs.RemoveByPeerRouter(pr)
+		s.rering(mp)
 	}
 	if address, ok := s.pRAddr[pr.String()]; ok {
 		delete(s.addrPR, address)
@@ -141,7 +154,7 @@ func (s *resourcesPool) RouteIn(mp core.MethodPath, id string, request proto.Mes
 		}).Warnf("methodpath %s not found", mp.String())
 		return nil, ErrMethodPathNotFound
 	}
-	if _, ok := s.ring[mp.String()]; !ok {
+	/*	if _, ok := s.ring[mp.String()]; !ok {
 		keys := make([]string, 0, psr.Len())
 		for _, v := range *psr {
 			keys = append(keys, v.PeerName())
@@ -149,7 +162,7 @@ func (s *resourcesPool) RouteIn(mp core.MethodPath, id string, request proto.Mes
 		ring := ringhash.New(psr.Len(), crc32.ChecksumIEEE)
 		ring.Add(keys...)
 		s.ring[mp.String()] = ring
-	}
+	}*/
 	peer := s.ring[mp.String()].Get(id)
 	pa, err := psr.FindOne(peer)
 	if err != nil {
