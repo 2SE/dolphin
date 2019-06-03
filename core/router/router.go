@@ -73,6 +73,8 @@ func (s *resourcesPool) Register(mps []core.MethodPather, pr core.PeerRouter, ad
 	defer s.m.Unlock()
 	if pr.PeerName() == "" {
 		pr.SetPeerName(s.localPeer.Name())
+	}
+	if pr.PeerName() == s.localPeer.Name() {
 		if s.pRAddr[pr.String()] == address {
 			log.WithFields(log.Fields{
 				logFieldKey: "Register",
