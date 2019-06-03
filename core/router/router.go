@@ -68,7 +68,7 @@ type resourcesPool struct {
 	m          sync.RWMutex
 }
 
-func (s *resourcesPool) Register(mps []core.MethodPath, pr core.PeerRouter, address string) error {
+func (s *resourcesPool) Register(mps []core.MethodPather, pr core.PeerRouter, address string) error {
 	s.m.Lock()
 	defer s.m.Unlock()
 	if pr.PeerName() == "" {
@@ -144,7 +144,7 @@ func (s *resourcesPool) UnRegisterApp(pr core.PeerRouter) {
 	s.localPeer.Notify(pr)
 }
 
-func (s *resourcesPool) RouteIn(mp core.MethodPath, id string, request proto.Message) (response proto.Message, err error) {
+func (s *resourcesPool) RouteIn(mp core.MethodPather, id string, request proto.Message) (response proto.Message, err error) {
 	s.m.RLock()
 	defer s.m.RUnlock()
 	psr, ok := s.topicPeers[mp.String()]
@@ -154,15 +154,6 @@ func (s *resourcesPool) RouteIn(mp core.MethodPath, id string, request proto.Mes
 		}).Warnf("methodpath %s not found", mp.String())
 		return nil, ErrMethodPathNotFound
 	}
-	/*	if _, ok := s.ring[mp.String()]; !ok {
-		keys := make([]string, 0, psr.Len())
-		for _, v := range *psr {
-			keys = append(keys, v.PeerName())
-		}
-		ring := ringhash.New(psr.Len(), crc32.ChecksumIEEE)
-		ring.Add(keys...)
-		s.ring[mp.String()] = ring
-	}*/
 	peer := s.ring[mp.String()].Get(id)
 	pa, err := psr.FindOne(peer)
 	if err != nil {

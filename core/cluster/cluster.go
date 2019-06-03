@@ -73,7 +73,7 @@ func (d *delegatedCluster) Partitioned() bool {
 
 // Recv call remote Cluster.Recv
 // The request from remote peer`s broadcast.
-func (d *delegatedCluster) Notify(pr core.PeerRouter, mps ...core.MethodPath) {
+func (d *delegatedCluster) Notify(pr core.PeerRouter, mps ...core.MethodPather) {
 	if gwCluster == nil {
 		return
 	}
@@ -165,7 +165,7 @@ func (d *delegatedCluster) RouteOut(pr core.PeerRouter, request proto.Message) (
 	return d.router.RouteOut(pr, request)
 }
 
-func (d *delegatedCluster) Register(mps []core.MethodPath, pr core.PeerRouter, address string) error {
+func (d *delegatedCluster) Register(mps []core.MethodPather, pr core.PeerRouter, address string) error {
 	return d.router.Register(mps, pr, address)
 }
 

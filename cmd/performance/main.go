@@ -18,10 +18,10 @@ var (
 )
 
 func main() {
-	conns := GetClients(20)
+	conns := GetClients(1)
 	for _, v := range conns {
 		go func(conn *websocket.Conn) {
-			req := getRequests(10000)
+			req := getRequests(1)
 			sendRequest(conn, req)
 		}(v)
 	}

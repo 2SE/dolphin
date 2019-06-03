@@ -67,8 +67,10 @@ func (s *resourcesPool) errRecovery() {
 					log.WithFields(log.Fields{
 						logFieldKey: "errRecovery",
 					}).Tracef("appclient %s was removed\n", k)
+					s.connErrRemove(k)
+				} else {
+					s.connErrClear(k)
 				}
-				s.connErrClear(k)
 			}
 			ch <- struct{}{}
 		})
@@ -100,4 +102,10 @@ func (s *resourcesPool) connErrClear(key string) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	s.connErr[key] = 0
+}
+
+func (s *resourcesPool) connErrRemove(key string) {
+	s.m.Lock()
+	defer s.m.Unlock()
+	delete(s.connErr, key)
 }

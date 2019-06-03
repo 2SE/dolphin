@@ -14,15 +14,15 @@ var (
 //账户体系，不用接口，这里用接口会带来很多对象开销
 type RequestCheck struct {
 	check     bool
-	LoginMP   MethodPath
-	WhiteList []MethodPath
+	LoginMP   MethodPather
+	WhiteList []MethodPather
 }
 
 func InitRequestCheck(loginCnf *config.MethodPathConfig, whiteList []*config.MethodPathConfig) {
 	ReqCheck = &RequestCheck{
 		LoginMP:   NewMethodPath(loginCnf.Version, loginCnf.Resource, loginCnf.Action),
 		check:     true,
-		WhiteList: make([]MethodPath, len(whiteList)),
+		WhiteList: make([]MethodPather, len(whiteList)),
 	}
 	for k, v := range whiteList {
 		ReqCheck.WhiteList[k] = NewMethodPath(v.Version, v.Resource, v.Action)
@@ -32,7 +32,7 @@ func InitRequestCheck(loginCnf *config.MethodPathConfig, whiteList []*config.Met
 func (rc *RequestCheck) NeedCheck() bool {
 	return rc.check
 }
-func (rc *RequestCheck) CheckFirst(mp MethodPath) error {
+func (rc *RequestCheck) CheckFirst(mp MethodPather) error {
 	if mp.String() == rc.LoginMP.String() {
 		return nil
 	}
@@ -44,6 +44,6 @@ func (rc *RequestCheck) CheckFirst(mp MethodPath) error {
 	return ErrCheckFirst
 }
 
-func (rc *RequestCheck) CheckLogin(mp MethodPath) bool {
+func (rc *RequestCheck) CheckLogin(mp MethodPather) bool {
 	return mp.String() == rc.LoginMP.String()
 }
