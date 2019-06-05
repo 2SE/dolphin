@@ -23,7 +23,7 @@ var (
 var (
 	ErrMethodPathNotFound   = errors.New("route: methodPath not found")
 	ErrClientExists         = errors.New("route: client exists")
-	ErrAddressNotFound      = errors.New("route: address not fount")
+	ErrAddressNotFound      = errors.New("route: address not found")
 	ErrGprcServerConnFailed = errors.New("route: connection to grpc server failed")
 )
 
@@ -68,11 +68,13 @@ type resourcesPool struct {
 	m          sync.RWMutex
 }
 
-func (s *resourcesPool) Register(mps []core.MethodPath, pr core.PeerRouter, address string) error {
+func (s *resourcesPool) Register(mps []core.MethodPather, pr core.PeerRouter, address string) error {
 	s.m.Lock()
 	defer s.m.Unlock()
 	if pr.PeerName() == "" {
 		pr.SetPeerName(s.localPeer.Name())
+	}
+	if pr.PeerName() == s.localPeer.Name() {
 		if s.pRAddr[pr.String()] == address {
 			log.WithFields(log.Fields{
 				logFieldKey: "Register",
@@ -104,34 +106,60 @@ func (s *resourcesPool) Register(mps []core.MethodPath, pr core.PeerRouter, addr
 			s.topicPeers[mp.String()].Append(pr)
 			s.topicPeers[mp.String()].Sort()
 		}
+		s.rering(mp.String())
 	}
-	s.localPeer.Notify(pr, mps...)
+	if pr.PeerName() == s.localPeer.Name() {
+		s.localPeer.Notify(pr, mps...)
+	}
+	log.WithFields(log.Fields{
+		logFieldKey: "Register",
+	}).Warnf("grpc server register %s", pr.String())
 	return nil
 }
 
+func (s *resourcesPool) rering(key string) {
+	peers := *s.topicPeers[key]
+	keys := make([]string, 0, peers.Len())
+	for _, v := range peers {
+		keys = append(keys, v.PeerName())
+	}
+	ring := ringhash.New(peers.Len(), crc32.ChecksumIEEE)
+	ring.Add(keys...)
+	s.ring[key] = ring
+}
 func (s *resourcesPool) UnRegisterPeer(peerName string) {
 	s.m.Lock()
 	defer s.m.Unlock()
-	for _, prs := range s.topicPeers {
+	log.WithFields(log.Fields{
+		logFieldKey: "Register",
+	}).Warnf("peer %s unregister", peerName)
+	for mp, prs := range s.topicPeers {
 		prs.RemoveByPeer(peerName)
+		s.rering(mp)
 	}
 }
 
 func (s *resourcesPool) UnRegisterApp(pr core.PeerRouter) {
 	s.m.Lock()
 	defer s.m.Unlock()
-	for _, prs := range s.topicPeers {
+	for mp, prs := range s.topicPeers {
 		prs.RemoveByPeerRouter(pr)
+		s.rering(mp)
 	}
 	if address, ok := s.pRAddr[pr.String()]; ok {
 		delete(s.addrPR, address)
 		s.RemoveClient(address)
 		delete(s.pRAddr, pr.String())
 	}
-	s.localPeer.Notify(pr)
+	if pr.PeerName() == s.localPeer.Name() {
+		s.localPeer.Notify(pr)
+	}
+	log.WithFields(log.Fields{
+		logFieldKey: "Register",
+	}).Warnf("app %s unregister", pr.AppName())
 }
 
-func (s *resourcesPool) RouteIn(mp core.MethodPath, id string, request proto.Message) (response proto.Message, err error) {
+func (s *resourcesPool) RouteIn(mp core.MethodPather, id string, request proto.Message) (response proto.Message, err error) {
 	s.m.RLock()
 	defer s.m.RUnlock()
 	psr, ok := s.topicPeers[mp.String()]
@@ -141,21 +169,12 @@ func (s *resourcesPool) RouteIn(mp core.MethodPath, id string, request proto.Mes
 		}).Warnf("methodpath %s not found", mp.String())
 		return nil, ErrMethodPathNotFound
 	}
-	if _, ok := s.ring[mp.String()]; !ok {
-		keys := make([]string, 0, psr.Len())
-		for _, v := range *psr {
-			keys = append(keys, v.PeerName())
-		}
-		ring := ringhash.New(psr.Len(), crc32.ChecksumIEEE)
-		ring.Add(keys...)
-		s.ring[mp.String()] = ring
-	}
 	peer := s.ring[mp.String()].Get(id)
 	pa, err := psr.FindOne(peer)
 	if err != nil {
 		log.WithFields(log.Fields{
 			logFieldKey: "RouteIn",
-		}).Warnf("peer %s not exists,", peer)
+		}).Warnf("peer %s not exists", peer)
 		return nil, err
 	}
 	return s.localPeer.Request(pa, request)
@@ -166,7 +185,7 @@ func (s *resourcesPool) RouteOut(pr core.PeerRouter, request proto.Message) (res
 	if !ok {
 		log.WithFields(log.Fields{
 			logFieldKey: "RouteOut",
-		}).Warnf("peerRouter %s not found\n", pr.String())
+		}).Warnf("peerRouter %s not found", pr.String())
 		return nil, ErrAddressNotFound
 	}
 	return s.callAppAction(addr, request)

@@ -19,7 +19,7 @@ func (*mockCluster) Name() string {
 func (*mockCluster) SetRouter(core.Router) {
 
 }
-func (*mockCluster) Notify(core.PeerRouter, ...core.MethodPath) {
+func (*mockCluster) Notify(core.PeerRouter, ...core.MethodPather) {
 
 }
 func (*mockCluster) Request(core.PeerRouter, proto.Message) (proto.Message, error) {

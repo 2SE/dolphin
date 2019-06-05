@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/2se/dolphin/cmd/serverexample/user"
 	"github.com/2se/dolphin/pb"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/sirupsen/logrus"
@@ -32,7 +33,7 @@ type MP struct {
 var (
 	m     sync.Mutex
 	id    int64 = 2
-	users       = []*User{
+	users       = []*user.User{
 		{UserId: 1, Age: 20, UserName: "Mr Cai", Face: "face1.jpg"},
 		{UserId: 2, Age: 25, UserName: "Miss Cai", Face: "face2.jpg"},
 	}
@@ -61,7 +62,7 @@ func init() {
 	appInfo.AppName = "app1"
 	//本地服务地址
 	appInfo.Address = "192.168.10.169:10086"
-	appInfo.Methods = make([]*MP, 3)
+	appInfo.Methods = make([]*MP, 0, 3)
 
 	v1Map["getUser"] = &route{Resource: "user", Reversion: "v1.0", Method: service.GetUser}
 	v1Map["addUser"] = &route{Resource: "user", Reversion: "v1.0", Method: service.AddUser}
@@ -94,7 +95,7 @@ func (service *ExampleService) Request(ctx context.Context, req *pb.ClientComReq
 }
 
 func (service *ExampleService) AddUser(c *pb.ClientComRequest) (*pb.ServerComResponse, error) {
-	req := &User{}
+	req := &user.User{}
 	err := ptypes.UnmarshalAny(c.Params, req)
 	if err != nil {
 		return nil, err
@@ -114,7 +115,7 @@ func (service *ExampleService) AddUser(c *pb.ClientComRequest) (*pb.ServerComRes
 	}, nil
 }
 func (service *ExampleService) RmoveUser(c *pb.ClientComRequest) (*pb.ServerComResponse, error) {
-	req := &GetUserRequest{}
+	req := &user.GetUserRequest{}
 	err := ptypes.UnmarshalAny(c.Params, req)
 	if err != nil {
 		return nil, err
@@ -135,7 +136,7 @@ func (service *ExampleService) RmoveUser(c *pb.ClientComRequest) (*pb.ServerComR
 }
 func (service *ExampleService) GetUser(c *pb.ClientComRequest) (*pb.ServerComResponse, error) {
 	logrus.Info(c)
-	req := &GetUserRequest{}
+	req := &user.GetUserRequest{}
 	err := ptypes.UnmarshalAny(c.Params, req)
 	if err != nil {
 		return nil, err
@@ -173,6 +174,7 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("json marshal err:%s ", err.Error()))
 	}
+
 	resp, err := http.Post(dolphinAddr, "application/json; charset=utf-8", bytes.NewReader(appJson))
 	if err != nil {
 		panic(fmt.Errorf("Service registration failed err:%v ", err))
@@ -183,6 +185,6 @@ func main() {
 		panic(fmt.Errorf("Service registration failed err:%v ", err))
 	}
 	fmt.Println(string(body))
-
+	fmt.Print(string(appJson))
 	select {}
 }
