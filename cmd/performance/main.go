@@ -7,6 +7,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/google/uuid"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"log"
@@ -14,7 +15,7 @@ import (
 )
 
 var (
-	addr = "192.168.10.169:8080"
+	addr = "192.168.10.159:8080"
 )
 
 func main() {
@@ -25,7 +26,7 @@ func main() {
 			sendRequest(conn, req)
 		}(v)
 	}
-	select {}
+	time.Sleep(time.Second * 5)
 }
 
 //[{"Reversion":"v1.0","Resource":"user","Action":"getUser"},

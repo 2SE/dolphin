@@ -23,7 +23,7 @@ var (
 var (
 	ErrMethodPathNotFound   = errors.New("route: methodPath not found")
 	ErrClientExists         = errors.New("route: client exists")
-	ErrAddressNotFound      = errors.New("route: address not fount")
+	ErrAddressNotFound      = errors.New("route: address not found")
 	ErrGprcServerConnFailed = errors.New("route: connection to grpc server failed")
 )
 
@@ -111,6 +111,9 @@ func (s *resourcesPool) Register(mps []core.MethodPather, pr core.PeerRouter, ad
 	if pr.PeerName() == s.localPeer.Name() {
 		s.localPeer.Notify(pr, mps...)
 	}
+	log.WithFields(log.Fields{
+		logFieldKey: "Register",
+	}).Warnf("grpc server register %s", pr.String())
 	return nil
 }
 
@@ -128,8 +131,8 @@ func (s *resourcesPool) UnRegisterPeer(peerName string) {
 	s.m.Lock()
 	defer s.m.Unlock()
 	log.WithFields(log.Fields{
-		logFieldKey: "UnRegisterPeer",
-	}).Info("peer %s unregister", peerName)
+		logFieldKey: "Register",
+	}).Warnf("peer %s unregister", peerName)
 	for mp, prs := range s.topicPeers {
 		prs.RemoveByPeer(peerName)
 		s.rering(mp)
@@ -151,6 +154,9 @@ func (s *resourcesPool) UnRegisterApp(pr core.PeerRouter) {
 	if pr.PeerName() == s.localPeer.Name() {
 		s.localPeer.Notify(pr)
 	}
+	log.WithFields(log.Fields{
+		logFieldKey: "Register",
+	}).Warnf("app %s unregister", pr.AppName())
 }
 
 func (s *resourcesPool) RouteIn(mp core.MethodPather, id string, request proto.Message) (response proto.Message, err error) {
@@ -168,7 +174,7 @@ func (s *resourcesPool) RouteIn(mp core.MethodPather, id string, request proto.M
 	if err != nil {
 		log.WithFields(log.Fields{
 			logFieldKey: "RouteIn",
-		}).Warnf("peer %s not exists,", peer)
+		}).Warnf("peer %s not exists", peer)
 		return nil, err
 	}
 	return s.localPeer.Request(pa, request)
@@ -179,7 +185,7 @@ func (s *resourcesPool) RouteOut(pr core.PeerRouter, request proto.Message) (res
 	if !ok {
 		log.WithFields(log.Fields{
 			logFieldKey: "RouteOut",
-		}).Warnf("peerRouter %s not found\n", pr.String())
+		}).Warnf("peerRouter %s not found", pr.String())
 		return nil, ErrAddressNotFound
 	}
 	return s.callAppAction(addr, request)

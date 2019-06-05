@@ -56,7 +56,6 @@ func (d *delegatedCluster) Name() string {
 	if gwCluster != nil {
 		return gwCluster.thisName
 	}
-
 	return LocalPeer
 }
 
@@ -67,7 +66,6 @@ func (d *delegatedCluster) Partitioned() bool {
 		// Cluster not initialized or failover disabled therefore not partitioned.
 		return false
 	}
-
 	return (len(gwCluster.peers)+1)/2 >= len(gwCluster.fo.activePeers)
 }
 
@@ -77,13 +75,13 @@ func (d *delegatedCluster) Notify(pr core.PeerRouter, mps ...core.MethodPather) 
 	if gwCluster == nil {
 		return
 	}
-
 	if d.Partitioned() {
 		log.Warnf("Notify: %v", PartitionedErr)
 		return
 	}
 	req := reqPool.Get().(*RequestPkt)
 	req.PeerName = gwCluster.thisName
+	req.AppName = pr.AppName()
 	if len(mps) > 0 {
 		req.PktType = OnlinePktType
 		req.Paths = mps
@@ -135,6 +133,7 @@ func (d *delegatedCluster) Request(value core.PeerRouter, message proto.Message)
 		defer reqPool.Put(req)
 
 		req.PeerName = gwCluster.thisName
+		req.TargetPeer = value.PeerName()
 		req.AppName = value.AppName()
 		req.Signature = gwCluster.signature
 		req.Pkt = message
@@ -338,8 +337,7 @@ type Cluster struct {
 
 // Invoke called by a remote peer.
 func (c *Cluster) Invoke(msg *RequestPkt, resp *RespPkt) (err error) {
-	log.Printf("cluster: Invoke request received from peer '%s'", msg.PeerName)
-
+	log.Printf("cluster: Invoke request received from peer '%s' appname '%s'", msg.PeerName, msg.AppName)
 	// the cluster peers may be in election phase
 	if msg.Signature != c.signature {
 		log.Warnf("cluster.Invoke: the cluster peers may be in election phase")
@@ -347,9 +345,9 @@ func (c *Cluster) Invoke(msg *RequestPkt, resp *RespPkt) (err error) {
 		resp.PeerValue = &PeerValue{c.thisName, c.listenOn}
 		return
 	}
-
 	var result proto.Message
-	pr := core.NewPeerRouter(msg.PeerName, msg.AppName)
+	//pr := core.NewPeerRouter(msg.PeerName, msg.AppName)
+	pr := core.NewPeerRouter(msg.TargetPeer, msg.AppName)
 	if result, err = c.delegate.RouteOut(pr, msg.Pkt); err != nil {
 		log.WithError(err).Errorf("cluster: error found when remote invoke RouteOut method")
 		resp.Code = 500
@@ -357,7 +355,6 @@ func (c *Cluster) Invoke(msg *RequestPkt, resp *RespPkt) (err error) {
 		resp.Code = 200
 		resp.Pkt = result
 	}
-
 	resp.PeerValue = &PeerValue{c.thisName, c.listenOn}
 	return
 }
@@ -374,7 +371,6 @@ func (c *Cluster) Report(msg *RequestPkt, resp *RespPkt) (err error) {
 		resp.Code = 500
 		return
 	}
-
 	pr := core.NewPeerRouter(msg.PeerName, msg.AppName)
 	switch msg.PktType {
 	case OnlinePktType:
@@ -382,7 +378,6 @@ func (c *Cluster) Report(msg *RequestPkt, resp *RespPkt) (err error) {
 	case OfflinePktType:
 		c.delegate.UnRegister(pr)
 	}
-
 	if err != nil {
 		resp.Code = 500
 	}
