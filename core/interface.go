@@ -127,6 +127,7 @@ func (s *PeerRouters) Append(pr PeerRouter) {
 func (s *PeerRouters) Sort() {
 	sort.Sort(s)
 }
+
 func (s *PeerRouters) RemoveByPeer(peerName string) {
 	for k, v := range *s {
 		if v.PeerName() == peerName {

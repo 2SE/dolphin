@@ -120,8 +120,12 @@ func (s *resourcesPool) Register(mps []core.MethodPather, pr core.PeerRouter, ad
 func (s *resourcesPool) rering(key string) {
 	peers := *s.topicPeers[key]
 	keys := make([]string, 0, peers.Len())
-	for _, v := range peers {
-		keys = append(keys, v.PeerName())
+	if peers.Len() == 0 {
+
+	} else {
+		for _, v := range peers {
+			keys = append(keys, v.PeerName())
+		}
 	}
 	ring := ringhash.New(peers.Len(), crc32.ChecksumIEEE)
 	ring.Add(keys...)
@@ -135,7 +139,12 @@ func (s *resourcesPool) UnRegisterPeer(peerName string) {
 	}).Warnf("peer %s unregister", peerName)
 	for mp, prs := range s.topicPeers {
 		prs.RemoveByPeer(peerName)
-		s.rering(mp)
+		if prs.Len() == 0 {
+			delete(s.topicPeers, mp)
+			delete(s.ring, mp)
+		} else {
+			s.rering(mp)
+		}
 	}
 }
 
@@ -144,7 +153,12 @@ func (s *resourcesPool) UnRegisterApp(pr core.PeerRouter) {
 	defer s.m.Unlock()
 	for mp, prs := range s.topicPeers {
 		prs.RemoveByPeerRouter(pr)
-		s.rering(mp)
+		if prs.Len() == 0 {
+			delete(s.topicPeers, mp)
+			delete(s.ring, mp)
+		} else {
+			s.rering(mp)
+		}
 	}
 	if address, ok := s.pRAddr[pr.String()]; ok {
 		delete(s.addrPR, address)
