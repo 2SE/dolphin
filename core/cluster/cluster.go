@@ -132,8 +132,7 @@ func (d *delegatedCluster) Request(value core.PeerRouter, message proto.Message)
 		req := reqPool.Get().(*RequestPkt)
 		defer reqPool.Put(req)
 
-		req.PeerName = gwCluster.thisName
-		req.TargetPeer = value.PeerName()
+		req.PeerName = value.PeerName()
 		req.AppName = value.AppName()
 		req.Signature = gwCluster.signature
 		req.Pkt = message
@@ -346,8 +345,7 @@ func (c *Cluster) Invoke(msg *RequestPkt, resp *RespPkt) (err error) {
 		return
 	}
 	var result proto.Message
-	//pr := core.NewPeerRouter(msg.PeerName, msg.AppName)
-	pr := core.NewPeerRouter(msg.TargetPeer, msg.AppName)
+	pr := core.NewPeerRouter(msg.PeerName, msg.AppName)
 	if result, err = c.delegate.RouteOut(pr, msg.Pkt); err != nil {
 		log.WithError(err).Errorf("cluster: error found when remote invoke RouteOut method")
 		resp.Code = 500
