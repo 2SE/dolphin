@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
+	"github.com/2se/dolphin/pb"
 	"github.com/golang/protobuf/proto"
 	"io"
 	"sort"
@@ -19,6 +20,8 @@ const (
 
 func init() {
 	gob.Register(&MethodPath{})
+	gob.Register(&pb.ClientComRequest{})
+	gob.Register(&pb.ServerComResponse{})
 }
 
 type LocalPeer interface {

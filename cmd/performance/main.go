@@ -28,7 +28,9 @@ func main() {
 	select {}
 }
 
-//	v1Map["getUser"] = &route{Resource: "user", Reversion: "v1.0", Method: service.GetUser}
+//[{"Reversion":"v1.0","Resource":"user","Action":"getUser"},
+// {"Reversion":"v1.0","Resource":"user","Action":"addUser"},
+// {"Reversion":"v.10","Resource":"user","Action":"removeUser"}]}
 func getRequests(num int) (request chan []byte) {
 	//v1Map["getUser"] = &route{Resource: "v1.0", Reversion: "user", Method: service.GetUser}
 	request = make(chan []byte, 20)

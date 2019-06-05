@@ -108,7 +108,9 @@ func (s *resourcesPool) Register(mps []core.MethodPather, pr core.PeerRouter, ad
 		}
 		s.rering(mp.String())
 	}
-	s.localPeer.Notify(pr, mps...)
+	if pr.PeerName() == s.localPeer.Name() {
+		s.localPeer.Notify(pr, mps...)
+	}
 	return nil
 }
 
@@ -125,6 +127,9 @@ func (s *resourcesPool) rering(key string) {
 func (s *resourcesPool) UnRegisterPeer(peerName string) {
 	s.m.Lock()
 	defer s.m.Unlock()
+	log.WithFields(log.Fields{
+		logFieldKey: "UnRegisterPeer",
+	}).Info("peer %s unregister", peerName)
 	for mp, prs := range s.topicPeers {
 		prs.RemoveByPeer(peerName)
 		s.rering(mp)

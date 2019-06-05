@@ -82,7 +82,6 @@ func (d *delegatedCluster) Notify(pr core.PeerRouter, mps ...core.MethodPather) 
 		log.Warnf("Notify: %v", PartitionedErr)
 		return
 	}
-
 	req := reqPool.Get().(*RequestPkt)
 	req.PeerName = gwCluster.thisName
 	if len(mps) > 0 {
@@ -101,9 +100,7 @@ func (d *delegatedCluster) Notify(pr core.PeerRouter, mps ...core.MethodPather) 
 		resp := &RespPkt{}
 		peer.callAsync(ReportMethod, req, resp, done)
 	}
-
 	reqPool.Put(req)
-
 	// TODO change timeout time
 	timeout := time.NewTimer(defaultTimeout)
 	for i := 0; i < peerCount; i++ {
@@ -112,13 +109,14 @@ func (d *delegatedCluster) Notify(pr core.PeerRouter, mps ...core.MethodPather) 
 			if call.Error != nil {
 				log.Warnf("cluster: call remote method failed. cause: %v", call.Error)
 			}
+			if i == peerCount-1 {
+				if !timeout.Stop() {
+					<-timeout.C
+				}
+			}
 		case <-timeout.C:
 			i = peerCount
 		}
-	}
-
-	if !timeout.Stop() {
-		<-timeout.C
 	}
 }
 
@@ -126,14 +124,12 @@ func (d *delegatedCluster) Notify(pr core.PeerRouter, mps ...core.MethodPather) 
 // the request from client
 // it will choose one peer to send request and reecived call back response
 func (d *delegatedCluster) Request(value core.PeerRouter, message proto.Message) (response proto.Message, err error) {
-	if gwCluster == nil {
+	if gwCluster == nil || localPeer.Name() == value.PeerName() {
 		return d.router.RouteOut(value, message)
 	}
-
 	if d.Partitioned() {
 		return nil, PartitionedErr
 	}
-
 	if peer, ok := gwCluster.peers[value.PeerName()]; ok {
 		req := reqPool.Get().(*RequestPkt)
 		defer reqPool.Put(req)
@@ -149,11 +145,9 @@ func (d *delegatedCluster) Request(value core.PeerRouter, message proto.Message)
 		if err = peer.call(RequestMethod, req, resp); err != nil {
 			return nil, err
 		}
-
 		response = resp.Pkt
 		return
 	}
-
 	return nil, PeerUnavailableErr
 }
 
