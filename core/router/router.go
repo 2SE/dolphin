@@ -148,7 +148,9 @@ func (s *resourcesPool) UnRegisterApp(pr core.PeerRouter) {
 		s.RemoveClient(address)
 		delete(s.pRAddr, pr.String())
 	}
-	s.localPeer.Notify(pr)
+	if pr.PeerName() == s.localPeer.Name() {
+		s.localPeer.Notify(pr)
+	}
 }
 
 func (s *resourcesPool) RouteIn(mp core.MethodPather, id string, request proto.Message) (response proto.Message, err error) {

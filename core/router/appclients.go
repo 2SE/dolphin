@@ -66,7 +66,7 @@ func (s *resourcesPool) errRecovery() {
 					s.UnRegisterApp(s.addrPR[k])
 					log.WithFields(log.Fields{
 						logFieldKey: "errRecovery",
-					}).Tracef("appclient %s was removed\n", k)
+					}).Warnf("appclient %s was removed\n", k)
 					s.connErrRemove(k)
 				} else {
 					s.connErrClear(k)
