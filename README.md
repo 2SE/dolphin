@@ -42,14 +42,14 @@ dolphin是一个集成了api网关，服务发现，请求限流，一致性hash
 3. 编译dolphin
 >cd ./cmd/dolphin \
 go build -o dolphin
-4. 将配置文件复制到dolphin运行文件同级目录并启动
+4. 将[配置文件](./document/simple.toml)复制到dolphin运行文件同级目录并启动
 >./dolphin -c simple.toml
 
 #### 2. 集群启动流程
 首先对照[startway.md](./document/startway.md)中对于单点和集群的差异修改好配置文件，然后以单点启动的方式逐个启动dolphin节点即可。
 
-### 检测dolphin是否启动成功（支持单节及多节点）
-1. 启动测试用服务端注册到dolphin
+### 微服务依赖dolphin掉用示例（支持单节及多节点）
+#### 1. 启动测试用服务端注册到dolphin
 ```
 在dolphin/cmd/serverexample目录下有一个测试用的Grpc服务 
 在server.go 中有 
@@ -60,7 +60,7 @@ go build -o dolphin
              	
 ```
 
-2. 启动测试客户端发起请求
+#### 2. 启动测试客户端发起请求
 ```
 在dolphin/cmd/performance目录下是一个ws请求示例，配合serverexample使用，
 该测试用例可结合dolphin中pprof测试dolphin性能。具体pprof使用请自行参考网
