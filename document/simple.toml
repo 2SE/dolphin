@@ -1,0 +1,39 @@
+### 最简配置
+[websocket]
+listen = "0.0.0.0:8080"
+read_buf_size = 1024
+write_buf_size = 1204
+queue_out_timeout = "50ms"
+session_queue_size = 128
+
+[cluster]
+self = ""
+
+[route]
+recycle = "5s"
+threshold = 5
+timeout = "30s"
+heartBeat ="800ms"
+
+[routehttp]
+address = "0.0.0.0:9527"
+
+[scheduler]
+address = "0.0.0.0:9528"
+
+[limit]
+maxNum = 65536
+maxRate = 50
+maxBurst = 5
+
+#[kafka]
+#enable = true
+#[[kafka.topics]]
+#brokers = ["0.0.0.0:9092"]
+#topic = "dolphinhub"
+#offset = 0
+#groupId = ""
+#partition = 0
+#minBytes = 1000
+#maxBytes = 1000000
+#maxWait = "2s"

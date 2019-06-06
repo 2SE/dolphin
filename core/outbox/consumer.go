@@ -26,7 +26,7 @@ type Consumers struct {
 	receive     chan *kafka.Message
 }
 
-func InitConsumers(cnfs []*config.KafkaConfig, pusher core.Hub, twl *tw.TimingWheel) {
+func InitConsumers(cnfs []*config.KafkaTopic, pusher core.Hub, twl *tw.TimingWheel) {
 	cms = &Consumers{
 		ticker:      twl,
 		hub:         pusher,
@@ -37,7 +37,7 @@ func InitConsumers(cnfs []*config.KafkaConfig, pusher core.Hub, twl *tw.TimingWh
 	wg := new(sync.WaitGroup)
 	wg.Add(len(cnfs))
 	for _, v := range cnfs {
-		go func(cnf *config.KafkaConfig) {
+		go func(cnf *config.KafkaTopic) {
 			reader := kafka.NewReader(kafka.ReaderConfig{
 				Brokers:   cnf.Brokers,
 				GroupID:   cnf.GroupID,
