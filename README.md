@@ -13,7 +13,8 @@ dolphin是一个集成了api网关，服务发现，请求限流，一致性hash
 ## dolphin的概念
 当一个团队着手微服务的开发时，往往面对很多抉择，因为微服务存在很多缺点，如系统间api互相访问时，服务的高度依赖耦合难以维护；系统负载增加时，难以进行水平扩展，要面对各式各样的工具组合，增加运维难度。dolphin的出现将这些痛点化繁为简，让项目的开发部署更为方便。
 
-
+## 基于dolphin开发微服务
+目前已提供go版本微服务sdk可以让开发更有效率，具体描述请跳转至https://github.com/2SE/dolphin-sdk查阅
 
 ## go依赖
 1. Go 1.11 or newer.
@@ -48,7 +49,7 @@ go build -o dolphin
 #### 2. 集群启动流程
 首先对照[startway.md](./document/startway.md)中对于单点和集群的差异修改好配置文件，然后以单点启动的方式逐个启动dolphin节点即可。
 
-### 微服务依赖dolphin掉用示例（支持单节及多节点）
+### 微服务依赖dolphin调用示例（支持单节及多节点）
 #### 1. 启动测试用服务端注册到dolphin
 ```
 在dolphin/cmd/serverexample目录下有一个测试用的Grpc服务 
