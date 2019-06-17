@@ -8,7 +8,7 @@ import (
 type Config struct {
 	WsCnf        *WebsocketConfig    `toml:"websocket"`
 	ClusterCnf   *ClusterConfig      `toml:"cluster"`
-	KafkaCnf     []*KafkaConfig      `toml:"kafkas"`
+	KafkaCnf     *KafkaConfig        `toml:"kafka"`
 	PluginsCnf   []*PluginConfig     `toml:"plugins"`
 	RouteCnf     *RouteConfig        `toml:"route""`
 	RouteHttpCnf *RouteHttpConfig    `toml:"routehttp"`
@@ -83,8 +83,12 @@ type WsAutoCertConfig struct {
 	Email     string   `toml:"email"`
 	Domains   []string `toml:"domains"`
 }
-
 type KafkaConfig struct {
+	Enable bool          `toml:"enable"`
+	Topics []*KafkaTopic `toml:"topics"`
+}
+
+type KafkaTopic struct {
 	Brokers   []string `toml:"brokers"`
 	Topic     string   `toml:"topic"`
 	Offset    int64    `toml:"offset"`
@@ -133,8 +137,8 @@ type MethodPathConfig struct {
 
 func (cnf *Config) String() string {
 	if cnf.ClusterCnf != nil {
-		return fmt.Sprintf("\n%s\n%s\n%s\n\n[plugin]: %s\n",
-			cnf.WsCnf, cnf.ClusterCnf, cnf.KafkaCnf, cnf.PluginsCnf)
+		return fmt.Sprintf("\n%s\n%s\n\n[plugin]: %s\n",
+			cnf.WsCnf, cnf.ClusterCnf, cnf.PluginsCnf)
 	} else {
 		return "-"
 	}
@@ -148,7 +152,7 @@ func (cnf *Config) GetClusterConfig() *ClusterConfig {
 	return cnf.ClusterCnf
 }
 
-func (cnf *Config) GetKafkaConfig() []*KafkaConfig {
+func (cnf *Config) GetKafkaConfig() *KafkaConfig {
 	return cnf.KafkaCnf
 }
 
@@ -172,7 +176,7 @@ func (cnf *Config) GetWhiteListConfig() []*MethodPathConfig {
 }
 func (wscnf *WebsocketConfig) String() string {
 	return fmt.Sprintf("[websocket]\nlisten: %s | read buffer size: %d | write buffer size: %d "+
-		" | session queue size: %d | queue out timeout: %s\n%s\n",
+		"| idle session timeout : %d  | session queue size: %d |  queue out timeout: %s\n%s\n",
 		wscnf.Listen, wscnf.ReadBufSize, wscnf.WriteBufSize,
 		wscnf.IdleSessionTimeout, wscnf.SessionQueueSize, wscnf.QueueOutTimeout, wscnf.Tls)
 }
@@ -204,20 +208,6 @@ func (ccc *ClusterConnectionConfig) String() string {
 	return fmt.Sprintf("[cluster.connection]\ndial timeout: %s | (backoff)max delay: %s"+
 		" | base delay: %s | factor: %f | jitter: %f\n(net/rpc dial)disable_timeout: %v | wait_after: %s",
 		ccc.DialTimeout, ccc.MaxDelay, ccc.BaseDelay, ccc.Factor, ccc.Jitter, ccc.DisableReqTimeout, ccc.ReqWaitAfter)
-}
-
-func (kcnf *KafkaConfig) String() string {
-	return fmt.Sprintf("\n[kafka]\nbrokers: %v\n"+
-		"topic:%s\n"+
-		"consume group: %s\n"+
-		"partition: %d\n"+
-		"min bytes: %d\n"+
-		"max bytes: %d\n"+
-		"start offset: %d\n"+
-		"wait window: %s",
-		kcnf.Brokers, kcnf.Topic, kcnf.GroupID,
-		kcnf.Partition, kcnf.MinBytes,
-		kcnf.MaxBytes, kcnf.Offset, kcnf.MaxWait)
 }
 
 func (pcnf *PluginConfig) String() string {

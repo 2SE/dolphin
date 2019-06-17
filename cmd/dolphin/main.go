@@ -103,7 +103,9 @@ func run(cliCtx *cli.Context) error {
 
 	//init kafka consumers to push message into event
 	//outbox.ConsumersInit(cnf.KafkaCnf, despatcher, ticker)
-	outbox.InitConsumers(cnf.KafkaCnf, despatcher, ticker)
+	if cnf.KafkaCnf != nil && cnf.KafkaCnf.Enable {
+		outbox.InitConsumers(cnf.KafkaCnf.Topics, despatcher, ticker)
+	}
 
 	localPeer, err := cluster.Init(cnf.ClusterCnf)
 	if err != nil {

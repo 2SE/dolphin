@@ -1,10 +1,9 @@
+### 配置参考
 [websocket]
 # dolphin 对外提供websocket连接服务的地址
 listen = "127.0.0.1:8080"
 read_buf_size = 1024
 write_buf_size = 1204
-expvar = "/debug/vars"
-grpc_listen = "127.0.0.1:41050"
 write_time_wait = "10s"
 read_time_wait = "30s"
 idle_session_timeout = "55s"
@@ -70,24 +69,8 @@ heartbeat = "100ms"
 vote_after = 8
 # 在n个心跳周期之后，节点仍然没有正常响应，将视作该节点不可用
 node_fail_after = 16
-##################################################################################################
-[kafka]
-brokers = ["127.0.0.1:9092"]
-waitWindow = "2s"
-consumeGroup = "dolphin-grp"
-minBytes = 1000
-maxBytes = 1000000
-startOffset = 0
-##################################################################################################
-[[plugins]]
-enabled = false
-name = "auth"
-server_addr = "127.0.0.1:30060"
 
-[[plugins]]
-enabled = false
-name = "rate limit"
-server_addr = "127.0.0.1:30061"
+##################################################################################################
 
 [route]
 # appclient请求错误计数周期
@@ -104,16 +87,18 @@ address = "127.0.0.1:9527"
 [scheduler]
 address = "127.0.0.1:9528"
 
-[[kafkas]]
-brokers = ["127.0.0.1:9092"]
-topic = "test"
+[kafka]
+enable = true
+
+[[kafka.topics]]
+brokers = ["192.168.10.189:9092"]
+topic = "dolphinhub"
 offset = 0
 groupId = ""
 partition = 0
 minBytes = 1000
 maxBytes = 1000000
 maxWait = "2s"
-
 
 
 [limit]

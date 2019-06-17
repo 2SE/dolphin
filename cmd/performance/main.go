@@ -15,14 +15,15 @@ import (
 )
 
 var (
+	//dolphin websocket地址
 	addr = "192.168.10.159:8080"
 )
 
 func main() {
-	conns := GetClients(1)
+	conns := GetClients(1) //设置生成客户端数量
 	for _, v := range conns {
 		go func(conn *websocket.Conn) {
-			req := getRequests(1)
+			req := getRequests(1) //设置单个客户端串行请求次数
 			sendRequest(conn, req)
 		}(v)
 	}

@@ -6,11 +6,11 @@ import (
 )
 
 func TestConfigLoad(t *testing.T) {
-	path := "../config.toml"
+	path := "../simple.toml"
 	cnf, err := Load(path)
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	fmt.Println(cnf.LoginMPCnf)
+	fmt.Println(cnf.KafkaCnf)
 }
