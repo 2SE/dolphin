@@ -16,7 +16,7 @@ import (
 
 var (
 	//dolphin websocket地址
-	addr = "192.168.10.159:8080"
+	addr = "192.168.9.130:8080"
 )
 
 func main() {

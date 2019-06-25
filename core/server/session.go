@@ -191,7 +191,7 @@ func (sess *session) write(data []byte) error {
 func (sess *session) ping() {
 	hasErr := make(chan error)
 	action := func() {
-		err := sess.conn.WriteControl(ws.BinaryMessage, []byte{}, calcTimeout(sess.opt.WriteWait))
+		err := sess.conn.WriteControl(ws.PingMessage, []byte{}, calcTimeout(sess.opt.WriteWait))
 		if err != nil {
 			if ws.IsUnexpectedCloseError(err, ws.CloseNormalClosure, ws.CloseGoingAway, ws.CloseAbnormalClosure) {
 				log.WithError(err).Error("")
@@ -199,10 +199,8 @@ func (sess *session) ping() {
 			hasErr <- err
 			return
 		}
-
 		hasErr <- nil
 	}
-
 	for {
 		sess.opt.Ticker.AfterFunc(sess.opt.pingPeriod, action)
 		if err := <-hasErr; err != nil {
