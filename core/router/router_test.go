@@ -13,7 +13,7 @@ type mockRouter interface {
 
 func TestResourcesPool_RegiserSubResources(t *testing.T) {
 	//run dolphin/cmd/example/server.go fisrt
-	err := mock.MockRoute.Register([]core.MethodPath{
+	err := mock.MockRoute.Register([]core.MethodPather{
 		core.NewMethodPath("1", "2", "3"),
 		core.NewMethodPath("1", "3", "3"),
 		core.NewMethodPath("1", "4", "3"),
@@ -25,7 +25,7 @@ func TestResourcesPool_RegiserSubResources(t *testing.T) {
 	} else {
 		fmt.Println("register1 successed")
 	}
-	err = mock.MockRoute.Register([]core.MethodPath{
+	err = mock.MockRoute.Register([]core.MethodPather{
 		core.NewMethodPath("1", "2", "3"),
 		core.NewMethodPath("1", "3", "3"),
 		core.NewMethodPath("2", "4", "3"),

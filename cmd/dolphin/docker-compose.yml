@@ -2,9 +2,11 @@ version: '3'
 
 services:
   dolphin:
-    image: 192.168.9.130:5000/hashhash/dolphin:1.0
+    image: 192.168.9.130:5000/hashhash/dolphin:1.00
     volumes:
       - "./config.toml:/app/config.toml"
+    environment:
+      - TZ=Asia/Shanghai
     restart: always
     ports:
       - "8080:8080"

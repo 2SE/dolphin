@@ -56,7 +56,6 @@ func (d *delegatedCluster) Name() string {
 	if gwCluster != nil {
 		return gwCluster.thisName
 	}
-
 	return LocalPeer
 }
 
@@ -67,24 +66,22 @@ func (d *delegatedCluster) Partitioned() bool {
 		// Cluster not initialized or failover disabled therefore not partitioned.
 		return false
 	}
-
 	return (len(gwCluster.peers)+1)/2 >= len(gwCluster.fo.activePeers)
 }
 
 // Recv call remote Cluster.Recv
 // The request from remote peer`s broadcast.
-func (d *delegatedCluster) Notify(pr core.PeerRouter, mps ...core.MethodPath) {
+func (d *delegatedCluster) Notify(pr core.PeerRouter, mps ...core.MethodPather) {
 	if gwCluster == nil {
 		return
 	}
-
 	if d.Partitioned() {
 		log.Warnf("Notify: %v", PartitionedErr)
 		return
 	}
-
 	req := reqPool.Get().(*RequestPkt)
 	req.PeerName = gwCluster.thisName
+	req.AppName = pr.AppName()
 	if len(mps) > 0 {
 		req.PktType = OnlinePktType
 		req.Paths = mps
@@ -101,9 +98,7 @@ func (d *delegatedCluster) Notify(pr core.PeerRouter, mps ...core.MethodPath) {
 		resp := &RespPkt{}
 		peer.callAsync(ReportMethod, req, resp, done)
 	}
-
 	reqPool.Put(req)
-
 	// TODO change timeout time
 	timeout := time.NewTimer(defaultTimeout)
 	for i := 0; i < peerCount; i++ {
@@ -112,13 +107,14 @@ func (d *delegatedCluster) Notify(pr core.PeerRouter, mps ...core.MethodPath) {
 			if call.Error != nil {
 				log.Warnf("cluster: call remote method failed. cause: %v", call.Error)
 			}
+			if i == peerCount-1 {
+				if !timeout.Stop() {
+					<-timeout.C
+				}
+			}
 		case <-timeout.C:
 			i = peerCount
 		}
-	}
-
-	if !timeout.Stop() {
-		<-timeout.C
 	}
 }
 
@@ -126,19 +122,17 @@ func (d *delegatedCluster) Notify(pr core.PeerRouter, mps ...core.MethodPath) {
 // the request from client
 // it will choose one peer to send request and reecived call back response
 func (d *delegatedCluster) Request(value core.PeerRouter, message proto.Message) (response proto.Message, err error) {
-	if gwCluster == nil {
+	if gwCluster == nil || localPeer.Name() == value.PeerName() {
 		return d.router.RouteOut(value, message)
 	}
-
 	if d.Partitioned() {
 		return nil, PartitionedErr
 	}
-
 	if peer, ok := gwCluster.peers[value.PeerName()]; ok {
 		req := reqPool.Get().(*RequestPkt)
 		defer reqPool.Put(req)
 
-		req.PeerName = gwCluster.thisName
+		req.PeerName = value.PeerName()
 		req.AppName = value.AppName()
 		req.Signature = gwCluster.signature
 		req.Pkt = message
@@ -149,11 +143,9 @@ func (d *delegatedCluster) Request(value core.PeerRouter, message proto.Message)
 		if err = peer.call(RequestMethod, req, resp); err != nil {
 			return nil, err
 		}
-
 		response = resp.Pkt
 		return
 	}
-
 	return nil, PeerUnavailableErr
 }
 
@@ -165,7 +157,7 @@ func (d *delegatedCluster) RouteOut(pr core.PeerRouter, request proto.Message) (
 	return d.router.RouteOut(pr, request)
 }
 
-func (d *delegatedCluster) Register(mps []core.MethodPath, pr core.PeerRouter, address string) error {
+func (d *delegatedCluster) Register(mps []core.MethodPather, pr core.PeerRouter, address string) error {
 	return d.router.Register(mps, pr, address)
 }
 
@@ -344,8 +336,7 @@ type Cluster struct {
 
 // Invoke called by a remote peer.
 func (c *Cluster) Invoke(msg *RequestPkt, resp *RespPkt) (err error) {
-	log.Printf("cluster: Invoke request received from peer '%s'", msg.PeerName)
-
+	log.Printf("cluster: Invoke request received from peer '%s' appname '%s'", msg.PeerName, msg.AppName)
 	// the cluster peers may be in election phase
 	if msg.Signature != c.signature {
 		log.Warnf("cluster.Invoke: the cluster peers may be in election phase")
@@ -353,7 +344,6 @@ func (c *Cluster) Invoke(msg *RequestPkt, resp *RespPkt) (err error) {
 		resp.PeerValue = &PeerValue{c.thisName, c.listenOn}
 		return
 	}
-
 	var result proto.Message
 	pr := core.NewPeerRouter(msg.PeerName, msg.AppName)
 	if result, err = c.delegate.RouteOut(pr, msg.Pkt); err != nil {
@@ -363,7 +353,6 @@ func (c *Cluster) Invoke(msg *RequestPkt, resp *RespPkt) (err error) {
 		resp.Code = 200
 		resp.Pkt = result
 	}
-
 	resp.PeerValue = &PeerValue{c.thisName, c.listenOn}
 	return
 }
@@ -380,7 +369,6 @@ func (c *Cluster) Report(msg *RequestPkt, resp *RespPkt) (err error) {
 		resp.Code = 500
 		return
 	}
-
 	pr := core.NewPeerRouter(msg.PeerName, msg.AppName)
 	switch msg.PktType {
 	case OnlinePktType:
@@ -388,7 +376,6 @@ func (c *Cluster) Report(msg *RequestPkt, resp *RespPkt) (err error) {
 	case OfflinePktType:
 		c.delegate.UnRegister(pr)
 	}
-
 	if err != nil {
 		resp.Code = 500
 	}

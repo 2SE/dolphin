@@ -140,11 +140,9 @@ func (n *peer) call(serviceMethod string, req, resp interface{}) error {
 		return errors.New("cluster: peer '" + n.name + "' not connected")
 	}
 	n.lock.RUnlock()
-
 	// 如果请求远端数据失败，将重连远端的连接，本次请求将失败返回
 	if err := n.endpoint.Call(serviceMethod, req, resp); err != nil {
 		log.Infof("cluster: call failed to '%s' [%s]", n.name, err)
-
 		n.lock.Lock()
 		if n.connected {
 			n.endpoint.Close()
@@ -154,15 +152,54 @@ func (n *peer) call(serviceMethod string, req, resp interface{}) error {
 		n.lock.Unlock()
 		return err
 	}
-
 	return nil
 }
 
-func (n *peer) callAsync(serviceMethod string, req, resp interface{}, done chan *rpc.Call) *rpc.Call {
+func (n *peer) callAsync(serviceMethod string, req, resp interface{}, done chan *rpc.Call) {
 	if done != nil && cap(done) == 0 {
 		log.Panic("cluster: RPC done channel is unbuffered")
 	}
+	n.lock.RLock()
+	if !n.connected {
+		call := &rpc.Call{
+			ServiceMethod: serviceMethod,
+			Args:          req,
+			Reply:         resp,
+			Error:         errors.New("cluster: peer '" + n.name + "' not connected"),
+			Done:          done,
+		}
 
+		if done != nil {
+			done <- call
+		}
+		n.lock.RUnlock()
+		return
+	}
+	n.lock.RUnlock()
+	myDone := make(chan *rpc.Call, 1)
+	go func() {
+		call := <-myDone
+		if call.Error != nil {
+			n.lock.Lock()
+			if n.connected {
+				n.endpoint.Close()
+				n.connected = false
+				n.lock.Unlock()
+				go n.reconnect()
+			} else {
+				n.lock.Unlock()
+			}
+		}
+		if done != nil {
+			done <- call
+		}
+	}()
+	n.endpoint.Go(serviceMethod, req, resp, myDone)
+}
+func (n *peer) callAsync2(serviceMethod string, req, resp interface{}, done chan *rpc.Call) *rpc.Call {
+	if done != nil && cap(done) == 0 {
+		log.Panic("cluster: RPC done channel is unbuffered")
+	}
 	n.lock.RLock()
 	if !n.connected {
 		call := &rpc.Call{
@@ -180,7 +217,6 @@ func (n *peer) callAsync(serviceMethod string, req, resp interface{}, done chan 
 		return call
 	}
 	n.lock.RUnlock()
-
 	myDone := make(chan *rpc.Call, 1)
 	go func() {
 		call := <-myDone
@@ -189,18 +225,16 @@ func (n *peer) callAsync(serviceMethod string, req, resp interface{}, done chan 
 			if n.connected {
 				n.endpoint.Close()
 				n.connected = false
+				n.lock.Unlock()
 				go n.reconnect()
+			} else {
+				n.lock.Unlock()
 			}
-			n.lock.Unlock()
 		}
-
 		if done != nil {
 			done <- call
 		}
 	}()
-
 	call := n.endpoint.Go(serviceMethod, req, resp, myDone)
-	call.Done = done
-
 	return call
 }

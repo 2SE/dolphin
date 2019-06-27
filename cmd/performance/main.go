@@ -7,6 +7,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/google/uuid"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"log"
@@ -14,21 +15,24 @@ import (
 )
 
 var (
-	addr = "192.168.10.169:8080"
+	//dolphin websocket地址
+	addr = "192.168.10.159:8080"
 )
 
 func main() {
-	conns := GetClients(20)
+	conns := GetClients(1) //设置生成客户端数量
 	for _, v := range conns {
 		go func(conn *websocket.Conn) {
-			req := getRequests(10000)
+			req := getRequests(1) //设置单个客户端串行请求次数
 			sendRequest(conn, req)
 		}(v)
 	}
-	select {}
+	time.Sleep(time.Second * 5)
 }
 
-//	v1Map["getUser"] = &route{Resource: "user", Reversion: "v1.0", Method: service.GetUser}
+//[{"Reversion":"v1.0","Resource":"user","Action":"getUser"},
+// {"Reversion":"v1.0","Resource":"user","Action":"addUser"},
+// {"Reversion":"v.10","Resource":"user","Action":"removeUser"}]}
 func getRequests(num int) (request chan []byte) {
 	//v1Map["getUser"] = &route{Resource: "v1.0", Reversion: "user", Method: service.GetUser}
 	request = make(chan []byte, 20)

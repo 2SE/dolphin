@@ -185,13 +185,13 @@ func (sess *session) writeLoop() {
 
 func (sess *session) write(data []byte) error {
 	sess.conn.SetWriteDeadline(calcTimeout(sess.opt.WriteWait))
-	return sess.conn.WriteMessage(ws.TextMessage, data)
+	return sess.conn.WriteMessage(ws.BinaryMessage, data)
 }
 
 func (sess *session) ping() {
 	hasErr := make(chan error)
 	action := func() {
-		err := sess.conn.WriteControl(ws.PingMessage, []byte{}, calcTimeout(sess.opt.WriteWait))
+		err := sess.conn.WriteControl(ws.BinaryMessage, []byte{}, calcTimeout(sess.opt.WriteWait))
 		if err != nil {
 			if ws.IsUnexpectedCloseError(err, ws.CloseNormalClosure, ws.CloseGoingAway, ws.CloseAbnormalClosure) {
 				log.WithError(err).Error("")
