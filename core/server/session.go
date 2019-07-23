@@ -128,8 +128,8 @@ func (sess *session) readLoop() {
 	// receive pong message from client, then reset readLoop deadline
 	sess.conn.SetPongHandler(func(string) error {
 		return sess.conn.SetReadDeadline(calcTimeout(sess.opt.pongWait))
-	})
 
+	})
 	var (
 		data []byte
 		err  error
@@ -189,6 +189,7 @@ func (sess *session) write(data []byte) error {
 }
 
 func (sess *session) ping() {
+	defer sess.closeWs()
 	hasErr := make(chan error)
 	action := func() {
 		err := sess.conn.WriteControl(ws.PingMessage, []byte{}, calcTimeout(sess.opt.WriteWait))
@@ -204,6 +205,7 @@ func (sess *session) ping() {
 	for {
 		sess.opt.Ticker.AfterFunc(sess.opt.pingPeriod, action)
 		if err := <-hasErr; err != nil {
+			log.Error("conn ping err :", err)
 			return
 		}
 	}

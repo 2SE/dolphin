@@ -14,20 +14,37 @@ import (
 
 var (
 	//dolphin websocket地址
-	addr = "106.12.54.87:8080"
+	//addr = "106.12.54.87:8080"
+	addr = "192.168.9.130:8080"
 )
 
 func main() {
-	conns := GetClients(10000) //设置生成客户端数量
+	/*conns := GetClients(1) //设置生成客户端数量
 	for v := range conns {
 		if v != nil {
 			go func(conn *websocket.Conn) {
-				req := getRequests(20000) //设置单个客户端串行请求次数
+				req := getRequests(1) //设置单个客户端串行请求次数
 				sendRequest(conn, req)
 			}(v)
 		}
-	}
+	}*/
+	testPing()
 	select {}
+}
+func testPing() {
+	conn := GetClients(1)
+	cli := <-conn
+	for {
+
+		typ, p, err := cli.ReadMessage()
+		if err != nil {
+			fmt.Println(typ)
+			if typ == 9 {
+				fmt.Println("ping get", string(p))
+				cli.WriteMessage(10, []byte{})
+			}
+		}
+	}
 }
 
 //[{"Reversion":"v1.0","Resource":"user","Action":"getUser"},
@@ -84,7 +101,9 @@ func sendRequest(conn *websocket.Conn, request <-chan []byte) {
 				fmt.Println(err)
 			} else {
 				if res.Code != 200 {
-					fmt.Println("failed")
+					fmt.Println(res)
+				} else {
+
 				}
 			}
 			/*pmu := &pb.LoginResponse{}

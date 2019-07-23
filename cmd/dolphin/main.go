@@ -90,7 +90,6 @@ func run(cliCtx *cli.Context) error {
 	if len(pprof) > 0 {
 		go runPprof(t, pprof)
 	}
-
 	ticker := tw.NewTimingWheel(100*time.Millisecond, 550) // timer max wait 100ms * 550 ≈ 55sec.
 	ticker.Start()
 	defer ticker.Stop()
@@ -183,7 +182,6 @@ func signalHandler() <-chan bool {
 		log.Infof("Signal received: '%s', shutting down", sig)
 		stop <- true
 	}()
-
 	return stop
 }
 
@@ -193,7 +191,6 @@ func traceProfile() {
 		log.Fatal(err)
 	}
 	defer f.Close()
-
 	log.Println("Trace started")
 	trace.Start(f)
 	defer trace.Stop()
