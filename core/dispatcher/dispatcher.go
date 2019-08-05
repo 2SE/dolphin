@@ -162,10 +162,16 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 		}
 		ccr.Id = sess.GetUserId()
 	}
+	if len(ccr.FrontEnd.Key) > 0 {
+		_, err = dis.Subscribe(ccr.FrontEnd.Key, sess)
+		if err == nil {
+			sess.AppendSubKey(ccr.FrontEnd.Key)
+		}
+	}
 	res, err := router.RouteIn(mp, sess.GetID(), ccr)
 	if err != nil {
 		err = fmt.Errorf("ws: router in error:%s", err.Error())
-		response(sess, http.StatusInternalServerError, err)
+		response(sess, http.StatusBadGateway, err)
 		return
 	}
 	data, err := core.Marshal(res)
@@ -193,12 +199,9 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 		return
 	}
 
-	if len(ccr.FrontEnd.Key) > 0 {
-		dis.Subscribe(ccr.FrontEnd.Key, sess)
-	}
-	if len(ccr.FrontEnd.Key) > 0 {
+	/*	if len(ccr.FrontEnd.Key) > 0 {
 		dis.UnSubscribe(&core.Subscription{Ssid: ccr.FrontEnd.Key, Sub: sess})
-	}
+	}*/
 }
 
 func chekcRequstParams(sess core.Session, req *pb.ClientComRequest) bool {

@@ -40,10 +40,10 @@ func newSession(conn *ws.Conn) (io.WriteCloser, error) {
 	return NewSession(conn, opt)
 }
 
-func Init(cnf *config.WebsocketConfig, dispatcher core.Dispatcher, ticker *tw.TimingWheel) {
+func Init(cnf *config.WebsocketConfig, dispatcher core.HubDispatcher, ticker *tw.TimingWheel) {
 	opt = &Opt{
 		Tls:                cnf.Tls,
-		Dispatcher:         dispatcher,
+		HubDispatcher:      dispatcher,
 		Ticker:             ticker,
 		ReadBufferSize:     cnf.ReadBufSize,
 		WriteBufferSize:    cnf.WriteBufSize,
@@ -145,7 +145,7 @@ Loop:
 }
 
 func checkOpt(opt *Opt) {
-	if opt.Dispatcher == nil {
+	if opt.HubDispatcher == nil {
 		panic(NilDispatcherErr)
 	}
 
@@ -191,8 +191,9 @@ func checkOpt(opt *Opt) {
 }
 
 type Opt struct {
-	Tls                *config.WsTlsConfig
-	Dispatcher         core.Dispatcher
+	Tls *config.WsTlsConfig
+	//Dispatcher         core.Dispatcher
+	HubDispatcher      core.HubDispatcher //新加
 	Ticker             *tw.TimingWheel
 	IdleSessionTimeout time.Duration
 	WriteWait          time.Duration

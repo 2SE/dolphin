@@ -183,6 +183,7 @@ type Session interface {
 	Send(message proto.Message) error
 	LoggedIn() bool
 	SetUserId(userId string)
+	AppendSubKey(key string)
 }
 
 type Hub interface {
