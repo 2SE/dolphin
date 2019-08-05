@@ -166,6 +166,10 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 		_, err = dis.Subscribe(ccr.FrontEnd.Key, sess)
 		if err == nil {
 			sess.AppendSubKey(ccr.FrontEnd.Key)
+			if ccr.MethodPath.Action == strEmpty {
+				response(sess, http.StatusOK, nil)
+				return
+			}
 		}
 	}
 	res, err := router.RouteIn(mp, sess.GetID(), ccr)
@@ -198,10 +202,6 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 		log.WithError(err).Error("")
 		return
 	}
-
-	/*	if len(ccr.FrontEnd.Key) > 0 {
-		dis.UnSubscribe(&core.Subscription{Ssid: ccr.FrontEnd.Key, Sub: sess})
-	}*/
 }
 
 func chekcRequstParams(sess core.Session, req *pb.ClientComRequest) bool {
@@ -217,10 +217,13 @@ func chekcRequstParams(sess core.Session, req *pb.ClientComRequest) bool {
 	return true
 }
 func response(sess core.Session, code uint32, err error) {
-	log.Error(err)
 	res := &pb.ServerComResponse{
 		Code: code,
-		Text: err.Error(),
+	}
+	if err != nil {
+		res.Text = err.Error()
+		log.Error(err)
+
 	}
 	data, err := core.Marshal(res)
 	if err != nil {
