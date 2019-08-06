@@ -76,6 +76,7 @@ func (sess *session) SetUserId(userId string) {
 	sess.Lock()
 	defer sess.Unlock()
 	sess.userId = userId
+	sess.opt.SessionPoolAppend(userId, sess)
 }
 
 func (sess *session) Send(message proto.Message) (err error) {
@@ -104,6 +105,7 @@ func (sess *session) closeWs() {
 			sess.opt.HubDispatcher.UnSubscribe(&core.Subscription{k, sess})
 		}
 	}
+	delete(sess.opt.SessionPool, sess.GetUserId())
 	sess.conn.Close()
 }
 
