@@ -1,6 +1,6 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
-github.com/2se/dolphin v0.0.0-20190811070628-35bff36e514b h1:1ib4kwEvFUjiwr+SlMGhfG9MqiCJrAM/M/XyEEEvjKo=
-github.com/2se/dolphin v0.0.0-20190811070628-35bff36e514b/go.mod h1:zidYOh0P/Vp4Pad9nB7u+nse+9HI9T1UMd9vcQgAVck=
+github.com/2se/dolphin v0.0.0-20190811070628-74af929ec17239be7298b6cc9928701dc58bda81 h1:avNCQRg4dDe3YH6EIoiU+iacm2ZuusnSlfuGwPuHoc4=
+github.com/2se/dolphin v0.0.0-20190811070628-74af929ec17239be7298b6cc9928701dc58bda81/go.mod h1:zidYOh0P/Vp4Pad9nB7u+nse+9HI9T1UMd9vcQgAVck=
 github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/RussellLuo/timingwheel v0.0.0-20190326154208-5d4ce6cdc0da/go.mod h1:3VIJp8oOAlnDUnPy3kwyBGqsMiJJujqTP6ic9Jv6NbM=
