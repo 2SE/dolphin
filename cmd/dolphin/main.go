@@ -71,6 +71,7 @@ func run(cliCtx *cli.Context) error {
 
 	configPath := cliCtx.String(FlagConfigKey)
 	log.Printf("in param config path: [%s]", configPath)
+	//configPath = "/justdo/project/dolphin/cmd/dolphin/config.toml"
 	cnf, err := config.Load(configPath)
 	if err != nil || cnf == nil {
 		log.Fatalf("failed to load config file. may be error here: %v or else config is nil", err)
