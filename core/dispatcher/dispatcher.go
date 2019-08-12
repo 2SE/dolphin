@@ -98,6 +98,7 @@ func (dis *defaultDispatcher) pipeline() {
 			dis.RLock()
 			if subs, ok := dis.hub[string(data.Key)]; ok {
 				for _, item := range subs {
+					log.Trace("hub send ", string(data.Key))
 					go func() {
 						if _, err := item.Sub.Write(data.Val); err != nil {
 							log.WithError(err).Error("publish: failed")
@@ -165,6 +166,7 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 	if len(ccr.FrontEnd.Key) > 0 {
 		_, err = dis.Subscribe(ccr.FrontEnd.Key, sess)
 		if err == nil {
+			log.Tracef("user %s sub key %s:", sess.GetUserId(), ccr.FrontEnd.Key)
 			sess.AppendSubKey(ccr.FrontEnd.Key)
 			if ccr.MethodPath.Action == strEmpty {
 				response(sess, http.StatusOK, nil)
