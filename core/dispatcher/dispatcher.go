@@ -102,8 +102,15 @@ func (dis *defaultDispatcher) pipeline() {
 						"hub sub": string(data.Key),
 					}).Info("key=>", string(data.Key))
 					go func() {
-						if _, err := item.Sub.Write(data.Val); err != nil {
-							log.WithError(err).Error("publish: failed")
+						sub := &pb.ServerComResponse{
+							SubKey: data.Key,
+							SubVal: data.Val,
+						}
+						req, err := core.Marshal(sub)
+						if err == nil {
+							if _, err := item.Sub.Write(req); err != nil {
+								log.WithError(err).Error("publish: failed")
+							}
 						}
 					}()
 				}

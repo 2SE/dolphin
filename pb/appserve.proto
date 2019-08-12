@@ -41,8 +41,8 @@ message ServerComResponse {
     int64 ts = 6; // 消息发送的时间戳
     google.protobuf.Any header = 7; // 消息发送头部信息，由API定义
     google.protobuf.Any body = 8; // 消息发送的主体内容，由API定义
-    string sub_type = 9;//订阅类型
-    string sub_key = 10;//订阅key
+    bytes sub_val = 9;//订阅内容
+    bytes sub_key = 10;//订阅key
 
 }
 
