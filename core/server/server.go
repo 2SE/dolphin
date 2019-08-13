@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 )
 
@@ -40,10 +41,10 @@ func newSession(conn *ws.Conn) (io.WriteCloser, error) {
 	return NewSession(conn, opt)
 }
 
-func Init(cnf *config.WebsocketConfig, dispatcher core.Dispatcher, ticker *tw.TimingWheel) {
+func Init(cnf *config.WebsocketConfig, dispatcher core.HubDispatcher, ticker *tw.TimingWheel) {
 	opt = &Opt{
 		Tls:                cnf.Tls,
-		Dispatcher:         dispatcher,
+		HubDispatcher:      dispatcher,
 		Ticker:             ticker,
 		ReadBufferSize:     cnf.ReadBufSize,
 		WriteBufferSize:    cnf.WriteBufSize,
@@ -53,9 +54,9 @@ func Init(cnf *config.WebsocketConfig, dispatcher core.Dispatcher, ticker *tw.Ti
 		SessionQueueSize:   cnf.SessionQueueSize,
 		QueueOutTimeout:    cnf.QueueOutTimeout.Get(),
 		IDSalt:             cnf.IDSalt,
+		SessionPool:        make(map[string]*session),
 	}
 	checkOpt(opt)
-
 	wsUpgrader = &ws.Upgrader{
 		ReadBufferSize:  opt.ReadBufferSize,
 		WriteBufferSize: opt.WriteBufferSize,
@@ -70,7 +71,6 @@ func Init(cnf *config.WebsocketConfig, dispatcher core.Dispatcher, ticker *tw.Ti
 		Addr:    cnf.Listen,
 		Handler: mux,
 	}
-
 	if cnf.Tls != nil && cnf.Tls.Enabled {
 		tlsConfig, err := makeTls(cnf.Tls)
 		if err != nil {
@@ -84,7 +84,6 @@ func Init(cnf *config.WebsocketConfig, dispatcher core.Dispatcher, ticker *tw.Ti
 func ListenAndServe(stop <-chan bool) error {
 	shuttingDown := false
 	httpdone := make(chan bool)
-
 	go func() {
 		var err error
 		if server.TLSConfig != nil {
@@ -101,7 +100,6 @@ func ListenAndServe(stop <-chan bool) error {
 			}
 			// This is a second HTTP server listenning on a different port.
 			go http.ListenAndServe(opt.Tls.HTTPRedirect, TlsRedirect(server.Addr))
-
 			log.Infof("Listening for client HTTPS connections on [%s]", server.Addr)
 			err = server.ListenAndServeTLS("", "")
 		} else {
@@ -115,10 +113,8 @@ func ListenAndServe(stop <-chan bool) error {
 				log.Infof("HTTP server: failed", err)
 			}
 		}
-
 		httpdone <- true
 	}()
-
 	// Wait for either a termination signal or an error
 Loop:
 	for {
@@ -145,7 +141,7 @@ Loop:
 }
 
 func checkOpt(opt *Opt) {
-	if opt.Dispatcher == nil {
+	if opt.HubDispatcher == nil {
 		panic(NilDispatcherErr)
 	}
 
@@ -191,8 +187,10 @@ func checkOpt(opt *Opt) {
 }
 
 type Opt struct {
-	Tls                *config.WsTlsConfig
-	Dispatcher         core.Dispatcher
+	Tls *config.WsTlsConfig
+	//Dispatcher         core.Dispatcher
+	HubDispatcher      core.HubDispatcher //新加
+	SessionPool        map[string]*session
 	Ticker             *tw.TimingWheel
 	IdleSessionTimeout time.Duration
 	WriteWait          time.Duration
@@ -203,10 +201,20 @@ type Opt struct {
 	IDSalt             string
 	CheckOrigin        func(*http.Request) bool
 
+	sync.Mutex
 	pongWait   time.Duration
 	pingPeriod time.Duration
 }
 
+func (opt *Opt) SessionPoolAppend(userId string, sess *session) {
+	opt.Lock()
+	defer opt.Unlock()
+	if opt.SessionPool[userId] != nil {
+		opt.SessionPool[userId].closeWs()
+		delete(opt.SessionPool, userId)
+	}
+	opt.SessionPool[userId] = sess
+}
 func wsHandler(w http.ResponseWriter, r *http.Request) {
 	conn, err := wsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -214,7 +222,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "upgrade to the websocket failed", http.StatusBadRequest)
 		return
 	}
-
 	// TODO session store
 	newSession(conn)
 }

@@ -45,5 +45,8 @@ func (rc *RequestCheck) CheckFirst(mp MethodPather) error {
 }
 
 func (rc *RequestCheck) CheckLogin(mp MethodPather) bool {
+	if mp == nil {
+		return false
+	}
 	return mp.String() == rc.LoginMP.String()
 }

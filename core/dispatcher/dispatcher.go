@@ -98,9 +98,19 @@ func (dis *defaultDispatcher) pipeline() {
 			dis.RLock()
 			if subs, ok := dis.hub[string(data.Key)]; ok {
 				for _, item := range subs {
+					log.WithFields(log.Fields{
+						"hub sub": string(data.Key),
+					}).Info("key=>", string(data.Key))
 					go func() {
-						if _, err := item.Sub.Write(data.Val); err != nil {
-							log.WithError(err).Error("publish: failed")
+						sub := &pb.ServerComResponse{
+							SubKey: data.Key,
+							SubVal: data.Val,
+						}
+						req, err := core.Marshal(sub)
+						if err == nil {
+							if _, err := item.Sub.Write(req); err != nil {
+								log.WithError(err).Error("publish: failed")
+							}
 						}
 					}()
 				}
@@ -143,7 +153,10 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 	}
 
 	// TODO handle client id
-	mp := core.NewMethodPath(ccr.MethodPath.Revision, ccr.MethodPath.Resource, ccr.MethodPath.Action)
+	var mp core.MethodPather
+	if ccr.MethodPath != nil {
+		mp = core.NewMethodPath(ccr.MethodPath.Revision, ccr.MethodPath.Resource, ccr.MethodPath.Action)
+	}
 	//控制登录用
 	login := sess.LoggedIn()
 	needCheck := core.ReqCheck.NeedCheck()
@@ -162,10 +175,24 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 		}
 		ccr.Id = sess.GetUserId()
 	}
+	if len(ccr.FrontEnd.Key) > 0 {
+		_, err = dis.Subscribe(ccr.FrontEnd.Key, sess)
+		if err == nil {
+			log.WithFields(log.Fields{
+				"dispatch": sess.GetUserId(),
+				"sub":      ccr.FrontEnd.Key,
+			}).Info("key=>", string(ccr.FrontEnd.Key))
+			sess.AppendSubKey(ccr.FrontEnd.Key)
+			if ccr.MethodPath == nil || ccr.MethodPath.Action == strEmpty {
+				response(sess, http.StatusOK, nil)
+				return
+			}
+		}
+	}
 	res, err := router.RouteIn(mp, sess.GetID(), ccr)
 	if err != nil {
 		err = fmt.Errorf("ws: router in error:%s", err.Error())
-		response(sess, http.StatusInternalServerError, err)
+		response(sess, http.StatusBadGateway, err)
 		return
 	}
 	data, err := core.Marshal(res)
@@ -192,13 +219,6 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 		log.WithError(err).Error("")
 		return
 	}
-
-	if len(ccr.FrontEnd.Key) > 0 {
-		dis.Subscribe(ccr.FrontEnd.Key, sess)
-	}
-	if len(ccr.FrontEnd.Key) > 0 {
-		dis.UnSubscribe(&core.Subscription{Ssid: ccr.FrontEnd.Key, Sub: sess})
-	}
 }
 
 func chekcRequstParams(sess core.Session, req *pb.ClientComRequest) bool {
@@ -214,10 +234,13 @@ func chekcRequstParams(sess core.Session, req *pb.ClientComRequest) bool {
 	return true
 }
 func response(sess core.Session, code uint32, err error) {
-	log.Error(err)
 	res := &pb.ServerComResponse{
 		Code: code,
-		Text: err.Error(),
+	}
+	if err != nil {
+		res.Text = err.Error()
+		log.Error(err)
+
 	}
 	data, err := core.Marshal(res)
 	if err != nil {

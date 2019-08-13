@@ -15,7 +15,7 @@ func TestConsumerEvent(t *testing.T) {
 		receive:     make(chan *kafka.Message, 64),
 	}
 	cms.readers[0] = kafka.NewReader(kafka.ReaderConfig{
-		Brokers:  []string{"192.168.10.189:9092"},
+		Brokers:  []string{"192.168.9.125:9092"},
 		Topic:    "dolphinhub",
 		MinBytes: 10e3, // 10KB
 		MaxBytes: 10e6, // 10MB
