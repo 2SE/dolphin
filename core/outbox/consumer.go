@@ -58,6 +58,7 @@ func InitConsumers(cnfs []*config.KafkaTopic, pusher core.Hub, twl *tw.TimingWhe
 	wg.Wait()
 	cms.asyncOffsetLogger()
 	cms.consumerTopic()
+	log.Info("outbox set up success...")
 }
 
 func (c *Consumers) consumerTopic() {
@@ -67,6 +68,7 @@ func (c *Consumers) consumerTopic() {
 				m   kafka.Message
 				err error
 			)
+			log.Info("reader ", reader.Config().Topic, " set up...")
 			for {
 				m, err = reader.ReadMessage(context.Background())
 				if err != nil {
@@ -81,6 +83,10 @@ func (c *Consumers) consumerTopic() {
 					Key: m.Key,
 					Val: m.Value,
 				})
+				log.WithFields(log.Fields{
+					"outbox": "consumerTopic",
+					"topic":  reader.Config().Topic,
+				}).Info("key=>", string(m.Key))
 			}
 		}(reader)
 	}

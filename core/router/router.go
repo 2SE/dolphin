@@ -75,12 +75,21 @@ func (s *resourcesPool) Register(mps []core.MethodPather, pr core.PeerRouter, ad
 		pr.SetPeerName(s.localPeer.Name())
 	}
 	if pr.PeerName() == s.localPeer.Name() {
-		if s.pRAddr[pr.String()] == address {
-			log.WithFields(log.Fields{
-				logFieldKey: "Register",
-			}).Warnf("the address %s registered again when it not shutdown", address)
-			return nil
+		addr, ok := s.pRAddr[pr.String()]
+		if ok {
+			if addr == address {
+				log.WithFields(log.Fields{
+					logFieldKey: "Register",
+				}).Warnf("the address %s registered again when it not shutdown", address)
+				return nil
+			} else {
+				log.WithFields(log.Fields{
+					logFieldKey: "Register",
+				}).Warnf("the appName %s is already in use", pr.AppName())
+				return nil
+			}
 		}
+
 		err := s.TryAddClient(address)
 		if err != nil {
 			log.WithFields(log.Fields{

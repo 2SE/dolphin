@@ -21,11 +21,12 @@ type session struct {
 	opt  *Opt
 	conn *ws.Conn
 	//用户id
-	userId string
-	send   chan []byte
-	quit   chan bool
-	luid   security.ID
-	guid   string
+	userId  string
+	send    chan []byte
+	quit    chan bool
+	luid    security.ID
+	guid    string
+	subKeys map[string]bool
 	sync.Mutex
 }
 
@@ -34,16 +35,17 @@ func NewSession(conn *ws.Conn, opt *Opt) (io.WriteCloser, error) {
 		return nil, NilConnErr
 	}
 
-	if opt.Dispatcher == nil {
+	if opt.HubDispatcher == nil {
 		return nil, NilDispatcherErr
 	}
 
 	sess := &session{
-		conn: conn,
-		send: make(chan []byte, opt.SessionQueueSize),
-		quit: make(chan bool),
-		opt:  opt,
-		luid: security.NewID(),
+		conn:    conn,
+		send:    make(chan []byte, opt.SessionQueueSize),
+		quit:    make(chan bool),
+		opt:     opt,
+		luid:    security.NewID(),
+		subKeys: make(map[string]bool),
 	}
 	sess.guid = sess.luid.Unique(uint64(security.GetHardware()), opt.IDSalt)
 
@@ -51,7 +53,14 @@ func NewSession(conn *ws.Conn, opt *Opt) (io.WriteCloser, error) {
 	go sess.writeLoop()
 	return sess, nil
 }
-
+func (sess *session) AppendSubKey(key string) {
+	if sess.subKeys[key] == false {
+		sess.subKeys[key] = true
+	}
+}
+func (sess *session) GetSubKeys() map[string]bool {
+	return sess.subKeys
+}
 func (sess *session) GetID() string {
 	return sess.guid
 }
@@ -67,6 +76,7 @@ func (sess *session) SetUserId(userId string) {
 	sess.Lock()
 	defer sess.Unlock()
 	sess.userId = userId
+	sess.opt.SessionPoolAppend(userId, sess)
 }
 
 func (sess *session) Send(message proto.Message) (err error) {
@@ -90,12 +100,18 @@ func (sess *session) Close() error {
 }
 
 func (sess *session) closeWs() {
+	for k, v := range sess.subKeys {
+		if v {
+			sess.opt.HubDispatcher.UnSubscribe(&core.Subscription{k, sess})
+		}
+	}
+	delete(sess.opt.SessionPool, sess.GetUserId())
 	sess.conn.Close()
 }
 
 func (sess *session) dispatch(data []byte) {
-	if sess.opt.Dispatcher != nil {
-		sess.opt.Dispatcher.Dispatch(sess, data)
+	if sess.opt.HubDispatcher != nil {
+		sess.opt.HubDispatcher.Dispatch(sess, data)
 	}
 }
 
@@ -128,8 +144,8 @@ func (sess *session) readLoop() {
 	// receive pong message from client, then reset readLoop deadline
 	sess.conn.SetPongHandler(func(string) error {
 		return sess.conn.SetReadDeadline(calcTimeout(sess.opt.pongWait))
-	})
 
+	})
 	var (
 		data []byte
 		err  error
@@ -189,9 +205,10 @@ func (sess *session) write(data []byte) error {
 }
 
 func (sess *session) ping() {
+	defer sess.closeWs()
 	hasErr := make(chan error)
 	action := func() {
-		err := sess.conn.WriteControl(ws.BinaryMessage, []byte{}, calcTimeout(sess.opt.WriteWait))
+		err := sess.conn.WriteControl(ws.PingMessage, []byte{}, calcTimeout(sess.opt.WriteWait))
 		if err != nil {
 			if ws.IsUnexpectedCloseError(err, ws.CloseNormalClosure, ws.CloseGoingAway, ws.CloseAbnormalClosure) {
 				log.WithError(err).Error("")
@@ -199,13 +216,12 @@ func (sess *session) ping() {
 			hasErr <- err
 			return
 		}
-
 		hasErr <- nil
 	}
-
 	for {
 		sess.opt.Ticker.AfterFunc(sess.opt.pingPeriod, action)
 		if err := <-hasErr; err != nil {
+			log.Error("conn ping err :", err)
 			return
 		}
 	}

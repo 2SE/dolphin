@@ -22,7 +22,7 @@ dolphin是一个集成了api网关，服务发现，请求限流，一致性hash
 ## 如何使用
 
 ### 1. protobuf全局请求体
-- [dolphin/pb/appserve.proto](./pb/appserve.proto)用于标准化请求的参数和请求的返回参数
+- [dolphin/pb/appserve.proto](../protogen/bin/appserve.proto)用于标准化请求的参数和请求的返回参数
 
 - [dolphin/pb/login.proto](./pb/login.proto)用户约束登录成功后对用户id的监控，并使用截获的用户id做一致性hash
 
