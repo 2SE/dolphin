@@ -54,6 +54,8 @@ func NewSession(conn *ws.Conn, opt *Opt) (io.WriteCloser, error) {
 	return sess, nil
 }
 func (sess *session) AppendSubKey(key string) {
+	sess.Lock()
+	defer sess.Unlock()
 	if sess.subKeys[key] == false {
 		sess.subKeys[key] = true
 	}
@@ -75,8 +77,10 @@ func (sess *session) GetUserId() string {
 func (sess *session) SetUserId(userId string) {
 	sess.Lock()
 	defer sess.Unlock()
-	sess.userId = userId
-	sess.opt.SessionPoolAppend(userId, sess)
+	if userId != userEmpty {
+		sess.userId = userId
+		sess.opt.SessionPoolAppend(userId, sess)
+	}
 }
 
 func (sess *session) Send(message proto.Message) (err error) {
@@ -100,12 +104,30 @@ func (sess *session) Close() error {
 }
 
 func (sess *session) closeWs() {
+	log.WithFields(log.Fields{
+		"action": "closews",
+		"port":   sess.conn.RemoteAddr(),
+	}).Info(sess.GetUserId())
 	for k, v := range sess.subKeys {
 		if v {
 			sess.opt.HubDispatcher.UnSubscribe(&core.Subscription{k, sess})
 		}
 	}
-	delete(sess.opt.SessionPool, sess.GetUserId())
+	if sess.GetUserId() != userEmpty {
+		sess.opt.RemoveSession(sess.GetUserId())
+	}
+	sess.conn.Close()
+}
+func (sess *session) closeWsSimple() {
+	log.WithFields(log.Fields{
+		"action": "closeWsSimple",
+		"port":   sess.conn.RemoteAddr(),
+	}).Info(sess.GetUserId())
+	for k, v := range sess.subKeys {
+		if v {
+			sess.opt.HubDispatcher.UnSubscribe(&core.Subscription{k, sess})
+		}
+	}
 	sess.conn.Close()
 }
 

@@ -3,19 +3,19 @@ FROM golang:1.12.4
 WORKDIR /app
 
 
-ENV GOPROXY=https://goproxy.io
-ENV GO111MODULE=on
+#ENV GOPROXY=https://goproxy.io
+#ENV GO111MODULE=on
 
-COPY . .
+#COPY . .
 
-RUN go mod download
+#RUN go mod download
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o myapp
+#RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o myapp
 
 #rm -rf myapp
 
 
-#COPY myapp  /app/
+COPY myapp  /app/
 
 EXPOSE 8080
 EXPOSE 41050

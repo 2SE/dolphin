@@ -157,12 +157,28 @@ func (service *ExampleService) GetUser(c *pb.ClientComRequest) (*pb.ServerComRes
 }
 
 func main() {
+	s1 := new(ExampleService)
+
+	/*	c := &server.Config{
+			AppName:         appInfo.AppName,
+			Address:         appInfo.Address,
+			WriteBufSize:    32 * 1024,
+			ReadBufSize:     32 * 1024,
+			ConnTimeout:     time.Minute,
+			DolphinHttpAddr: dolphinAddr,
+			DolphinGrpcAddr: "192.168.9.130:9528",
+			RequestTimeout:  time.Minute,
+			LogLevel:        6,
+			RetryPort:       "11111",
+		}
+		server.Start(c, s1)*/
 	go func() {
-		s1 := new(ExampleService)
+
 		l, err := net.Listen("tcp", appInfo.Address)
 		if err != nil {
 			panic(fmt.Errorf("tpc listen err:%v ", err))
 		}
+
 		defer l.Close()
 		svc := grpc.NewServer()
 		pb.RegisterAppServeServer(svc, s1)

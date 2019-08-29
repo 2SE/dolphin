@@ -19,16 +19,16 @@ var (
 )
 
 func main() {
-	/*conns := GetClients(1) //设置生成客户端数量
+	conns := GetClients(10000) //设置生成客户端数量
 	for v := range conns {
 		if v != nil {
 			go func(conn *websocket.Conn) {
-				req := getRequests(1) //设置单个客户端串行请求次数
+				req := getRequests(1000) //设置单个客户端串行请求次数
 				sendRequest(conn, req)
 			}(v)
 		}
-	}*/
-	testPing()
+	}
+	//testPing()
 	select {}
 }
 func testPing() {
@@ -69,9 +69,9 @@ func getRequests(num int) (request chan []byte) {
 				Qid:     string(i),
 				Id:      string(i),
 				MethodPath: &pb.MethodPath{
-					Revision: "v1.0",
-					Action:   "getUser",
-					Resource: "user",
+					Revision: "v1",
+					Action:   "GetUser",
+					Resource: "Example",
 				},
 				FrontEnd: &pb.FrontEnd{
 					Uuid: uuid.New().String(),

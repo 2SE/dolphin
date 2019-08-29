@@ -206,14 +206,19 @@ type Opt struct {
 	pingPeriod time.Duration
 }
 
+func (opt *Opt) RemoveSession(userId string) {
+	opt.Lock()
+	delete(opt.SessionPool, userId)
+	opt.Unlock()
+}
 func (opt *Opt) SessionPoolAppend(userId string, sess *session) {
 	opt.Lock()
-	defer opt.Unlock()
 	if opt.SessionPool[userId] != nil {
-		opt.SessionPool[userId].closeWs()
+		opt.SessionPool[userId].closeWsSimple()
 		delete(opt.SessionPool, userId)
 	}
 	opt.SessionPool[userId] = sess
+	opt.Unlock()
 }
 func wsHandler(w http.ResponseWriter, r *http.Request) {
 	conn, err := wsUpgrader.Upgrade(w, r, nil)

@@ -51,7 +51,6 @@ func (dis *defaultDispatcher) Stop() error {
 func (dis *defaultDispatcher) Subscribe(ssid string, sub core.Subscriber) (*core.Subscription, error) {
 	dis.Lock()
 	defer dis.Unlock()
-
 	key := hash.OfString(sub.GetID())
 	if list, ok := dis.hub[ssid]; !ok {
 		list = make(map[uint32]*core.Subscription)
@@ -59,7 +58,6 @@ func (dis *defaultDispatcher) Subscribe(ssid string, sub core.Subscriber) (*core
 		dis.hub[ssid] = list
 		return list[key], nil
 	}
-
 	if _, ok := dis.hub[ssid][key]; !ok {
 		dis.hub[ssid][key] = &core.Subscription{Ssid: ssid, Sub: sub}
 		return dis.hub[ssid][key], nil
@@ -72,10 +70,8 @@ func (dis *defaultDispatcher) UnSubscribe(subscription *core.Subscription) {
 	if subscription == nil || subscription.Sub == nil || len(subscription.Ssid) == 0 {
 		return
 	}
-
 	dis.Lock()
 	defer dis.Unlock()
-
 	key := hash.OfString(subscription.Sub.GetID())
 	if _, ok := dis.hub[subscription.Ssid][key]; ok {
 		delete(dis.hub[subscription.Ssid], key)
@@ -216,7 +212,7 @@ func (dis *defaultDispatcher) Dispatch(sess core.Session, req core.Request) {
 		}
 	}
 	if _, err = sess.Write(data); err != nil {
-		log.WithError(err).Error("")
+		log.Error(err)
 		return
 	}
 }
@@ -239,8 +235,9 @@ func response(sess core.Session, code uint32, err error) {
 	}
 	if err != nil {
 		res.Text = err.Error()
-		log.Error(err)
-
+		log.WithFields(log.Fields{
+			"action": "response",
+		}).Error(err)
 	}
 	data, err := core.Marshal(res)
 	if err != nil {
@@ -248,6 +245,8 @@ func response(sess core.Session, code uint32, err error) {
 		log.Error("ws: marshal ServerComResponse data error", err)
 	}
 	if _, err = sess.Write(data); err != nil {
-		log.WithError(err).Error("")
+		log.WithFields(log.Fields{
+			"action": "response",
+		}).Error(err)
 	}
 }
