@@ -181,7 +181,7 @@ func (sess *session) readLoop() {
 			}
 			return
 		}
-		sess.dispatch(data)
+		go sess.dispatch(data)
 	}
 }
 
